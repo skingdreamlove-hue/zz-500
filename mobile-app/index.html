@@ -236,7 +236,7 @@ if(dashboardData)renderDashboard(dashboardData,dashboardKPI);
 
 function loadAll(){
 document.getElementById('updateInfo').textContent='正在获取数据...';
-Promise.all([
+return Promise.all([
 fetchKlines('sh000905',300),
 fetchKlines('sh000300',300)
 ]).then(function(results){
