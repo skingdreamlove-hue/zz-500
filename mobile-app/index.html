@@ -86,6 +86,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <span>沪深300: <span id="hs300Price">--</span></span>
 <span>HS300 MA20: <span id="hs300Ma20">--</span></span>
 </div>
+<div style="display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid rgba(30,41,59,0.5);align-items:center">
+<span class="ma-label">目标仓位</span>
+<span id="targetPosition" style="font-size:28px;font-weight:700">--</span>
+</div>
+<div id="positionHint" style="font-size:12px;color:#64748b;margin-top:4px">--</div>
 </div>
 
 <div class="card">
@@ -196,6 +201,11 @@ signal:signal
 return rows;
 }
 
+function getPosition(signal){
+var map={'清仓-跌破MA20':0,'满仓-涨破5%':100,'满仓-量价共振':100,'满仓-大盘撑腰':100,'底仓-逆市试错':10,'观望-无效突破':0};
+return map[signal]!==undefined?map[signal]:0;
+}
+
 function renderSignal(d){
 var badge=document.getElementById('signalBadge');
 badge.textContent=d.signal;
@@ -218,6 +228,13 @@ strongEl.style.color=d.is_hs300_strong==='True'?'#3fb950':'#f85149';
 var surgeEl=document.getElementById('volSurge');
 surgeEl.textContent=d.is_volume_surge==='True'?'是':'否';
 surgeEl.style.color=d.is_volume_surge==='True'?'#3fb950':'#8b949e';
+
+var posPct=getPosition(d.signal);
+var posEl=document.getElementById('targetPosition');
+posEl.textContent=posPct+'%';
+posEl.style.color=posPct>=100?'#ef4444':posPct>=10?'#f97316':'#3fb950';
+var hintEl=document.getElementById('positionHint');
+hintEl.textContent=posPct>=100?'信号强烈看多，可满仓操作':posPct>=10?'信号试探性看多，保持底仓':'当前信号建议空仓观望';
 
 var now=new Date();
 document.getElementById('updateInfo').textContent='更新于 '+now.toLocaleString('zh-CN');
