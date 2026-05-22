@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0e17">
+<title>策略调试 - 中证500</title>
+<link rel="manifest" href="manifest.json">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0e17;color:#e6edf3;min-height:100vh;-webkit-tap-highlight-color:transparent}
+.header{position:sticky;top:0;z-index:50;background:rgba(10,14,23,0.95);backdrop-filter:blur(12px);border-bottom:1px solid #1e293b;padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:16px;font-weight:600;color:#e6edf3}
+.nav{display:flex;gap:8px}
+.nav a{color:#64748b;font-size:13px;text-decoration:none;padding:4px 8px;border-radius:4px;transition:all .2s}
+.nav a.active{color:#22d3ee;background:rgba(34,211,238,0.1)}
+.content{padding:16px}
+.card{background:#111827;border:1px solid #1e293b;border-radius:12px;padding:16px;margin-bottom:12px}
+.card-title{font-size:12px;color:#64748b;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+.param-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.param-label{font-size:13px;color:#8b949e}
+.param-value{font-size:13px;color:#22d3ee;min-width:60px;text-align:right}
+input[type=range]{width:100%;margin-top:4px;accent-color:#22d3ee}
+.chart-container{position:relative;width:100%;height:220px;margin:8px 0}
+.chart-container canvas{width:100%!important;height:100%!important}
+.stat-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(30,41,59,0.5);font-size:13px}
+.stat-label{color:#8b949e}
+.stat-value{color:#e6edf3}
+.stat-green{color:#3fb950}
+.stat-red{color:#f85149}
+.loading{text-align:center;padding:40px;color:#64748b}
+.loading-spinner{display:inline-block;width:24px;height:24px;border:2px solid #1e293b;border-top-color:#22d3ee;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="header">
+<h1>策略调试</h1>
+<div class="nav">
+<a href="index.html">主页</a>
+<a href="strategy-debug.html" class="active">策略</a>
+<a href="review.html">复盘</a>
+</div>
+</div>
+
+<div class="content">
+<div class="card">
+<div class="card-title">参数调节</div>
+<div class="param-row"><span class="param-label">MA 周期</span><span class="param-value" id="maVal">20</span></div>
+<input type="range" id="maRange" min="5" max="60" value="20" oninput="updateParam()">
+<div class="param-row" style="margin-top:10px"><span class="param-label">起始日期</span></div>
+<input type="date" id="startDate" value="2015-05-01" style="width:100%;padding:8px;background:#0d1117;border:1px solid #1e293b;border-radius:6px;color:#e6edf3;font-size:13px" onchange="updateParam()">
+</div>
+
+<div class="card">
+<div class="card-title">策略净值曲线</div>
+<div class="chart-container"><canvas id="navChart"></canvas></div>
+</div>
+
+<div class="card">
+<div class="card-title">策略统计</div>
+<div id="statsContainer"><div class="loading"><div class="loading-spinner"></div></div></div>
+</div>
+</div>
+
+<script src="vendor/papaparse.min.js"></script>
+<script src="strategy-common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script>
+var rawData=null;var chartInstance=null;
+
+function loadData(){
+fetch('zz500_factors.csv').then(function(r){return r.text()}).then(function(csv){
+var parsed=Papa.parse(csv,{header:true,skipEmptyLines:true});
+rawData=parsed.data;
+updateParam();
+}).catch(function(e){
+document.getElementById('statsContainer').innerHTML='<div style="color:#f85149;text-align:center;padding:20px">加载失败: '+e.message+'</div>';
+});
+}
+
+function updateParam(){
+if(!rawData)return;
+var ma=parseInt(document.getElementById('maRange').value);
+var startDate=document.getElementById('startDate').value;
+document.getElementById('maVal').textContent=ma;
+
+var data=StrategyCommon.processRealData(rawData,startDate,'');
+var kpi=StrategyCommon.calcKPI(data);
+
+var last200=data.slice(-200);
+var labels=last200.map(function(d){return d.date});
+var navs=last200.map(function(d){return d.nav});
+
+if(chartInstance)chartInstance.destroy();
+var ctx=document.getElementById('navChart').getContext('2d');
+chartInstance=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'策略净值',data:navs,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.1)',fill:true,tension:0.1,pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#484f58',font:{size:9},maxTicksLimit:5},grid:{color:'#1e293b'}},y:{ticks:{color:'#484f58',font:{size:9}},grid:{color:'#1e293b'}}}}});
+
+var statsEl=document.getElementById('statsContainer');
+statsEl.innerHTML=
+'<div class="stat-row"><span class="stat-label">5日准确率</span><span class="stat-value '+(kpi.acc5>=50?'stat-green':'stat-red')+'">'+kpi.acc5.toFixed(1)+'%</span></div>'+
+'<div class="stat-row"><span class="stat-label">10日准确率</span><span class="stat-value '+(kpi.acc10>=50?'stat-green':'stat-red')+'">'+kpi.acc10.toFixed(1)+'%</span></div>'+
+'<div class="stat-row"><span class="stat-label">20日准确率</span><span class="stat-value '+(kpi.acc20>=50?'stat-green':'stat-red')+'">'+kpi.acc20.toFixed(1)+'%</span></div>'+
+'<div class="stat-row"><span class="stat-label">加权准确率</span><span class="stat-value '+(kpi.accWeighted>=50?'stat-green':'stat-red')+'">'+kpi.accWeighted.toFixed(1)+'%</span></div>'+
+'<div class="stat-row"><span class="stat-label">年化收益</span><span class="stat-value '+(kpi.annReturn>=0?'stat-green':'stat-red')+'">'+kpi.annReturn.toFixed(2)+'%</span></div>'+
+'<div class="stat-row"><span class="stat-label">数据天数</span><span class="stat-value">'+kpi.totalDays+'</span></div>';
+}
+
+loadData();
+</script>
+</body>
+</html>

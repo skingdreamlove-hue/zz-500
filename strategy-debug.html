@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>策略调试 - 中证500量化工具</title>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="vendor/prop-types.min.js"></script>
+<script src="vendor/Recharts.js"></script>
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script>tailwind.config={theme:{extend:{}}}</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0e17;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;min-width:1280px}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:#111827}
+::-webkit-scrollbar-thumb{background:#1e293b;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#334155}
+.panel{background:#111827;border:1px solid #1e293b;border-radius:12px;overflow:hidden}
+.panel-header{padding:14px 20px;border-bottom:1px solid #1e293b;display:flex;align-items:center;justify-content:space-between}
+.panel-body{padding:16px 20px}
+.slider-track{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;background:#1e293b;outline:none}
+.slider-track::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#3b82f6;cursor:pointer;border:2px solid #1e293b;transition:all .15s}
+.slider-track::-webkit-slider-thumb:hover{background:#60a5fa;transform:scale(1.15)}
+.toggle-switch{position:relative;width:40px;height:22px;background:#1e293b;border-radius:11px;cursor:pointer;transition:background .2s}
+.toggle-switch.active{background:#22c55e}
+.toggle-switch::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s}
+.toggle-switch.active::after{transform:translateX(18px)}
+.btn-primary{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 4px 12px rgba(37,99,235,0.3)}
+.btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 16px rgba(37,99,235,0.4)}
+.btn-primary:disabled{opacity:0.4;cursor:not-allowed;transform:none}
+.btn-danger{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 4px 12px rgba(220,38,38,0.3)}
+.btn-danger:hover:not(:disabled){transform:translateY(-1px)}
+.btn-danger:disabled{opacity:0.3;cursor:not-allowed;transform:none}
+.btn-replace{background:#1e293b;color:#64748b;border:1px solid #334155;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:600;cursor:not-allowed;transition:all .3s}
+.btn-replace.active{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;cursor:pointer;box-shadow:0 4px 12px rgba(245,158,11,0.3)}
+.btn-replace.active:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(245,158,11,0.4)}
+.weight-bar{height:6px;border-radius:3px;background:#1e293b;overflow:hidden;margin-top:4px}
+.weight-bar-fill{height:100%;border-radius:3px;transition:width .2s}
+.signal-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #1e293b30}
+.signal-row:last-child{border-bottom:none}
+.signal-row.dragging{opacity:0.4}
+.drag-over .signal-row{border-top:2px solid #3b82f6}
+.drag-handle{cursor:grab;color:#475569;font-size:14px;user-select:none}
+.drag-handle:active{cursor:grabbing}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.pulse-dot{animation:pulse-dot 1.2s ease-in-out infinite}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:100}
+.modal-box{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:28px;max-width:480px;width:90%}
+.ma-btn{padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;border:1px solid #1e293b;background:transparent;color:#64748b}
+.ma-btn:hover{border-color:#475569;color:#94a3b8}
+.ma-btn.active{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(37,99,235,0.3)}
+</style>
+</head>
+<body>
+<script>window.onerror=function(m,s,l,c,e){document.getElementById('root').innerHTML='<div style="padding:40px;color:#ef4444;font-family:monospace;white-space:pre-wrap;font-size:14px;background:#0a0e17;min-height:100vh"><h2>JavaScript Error</h2><p>'+m+'</p><p>File: '+s+'</p><p>Line: '+l+', Col: '+c+'</p>'+(e?e.stack:'')+'</div>';return true};window.addEventListener('load',function(){if(typeof React==='undefined'){document.body.innerHTML='<div style="display:flex;justify-content:center;align-items:center;height:100vh;background:#0a0e17;color:#e2e8f0;font-family:sans-serif;text-align:center"><div><h2 style="margin-bottom:12px">网络连接失败</h2><p style="color:#94a3b8">此页面需要在线加载依赖库，请检查网络连接后刷新</p></div></div>'}});</script>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useMemo,useCallback,useRef}=React;
+const{LineChart,Line,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,Legend,ReferenceLine}=Recharts;
+
+const SIGNAL_DEFS=[
+{name:'清仓-跌破MA',color:'#22c55e',defaultThreshold:1.0,desc:'跌破MA'},
+{name:'满仓-涨破5%',color:'#a855f7',defaultThreshold:1.05,desc:'涨破MA×1.05'},
+{name:'满仓-量价共振',color:'#ef4444',defaultThreshold:1.5,desc:'沪深300强+放量'},
+{name:'满仓-大盘撑腰',color:'#3b82f6',defaultThreshold:1.01,desc:'沪深300强+突破1%'},
+{name:'底仓-逆市试错',color:'#f97316',defaultThreshold:1.01,desc:'弱市+突破1%'},
+{name:'观望-无效突破',color:'#6b7280',defaultThreshold:1.0,desc:'站上MA<1%'}
+];
+
+const DEFAULT_WEIGHTS={fwd5:20,fwd10:30,fwd20:50};
+const DEFAULT_THRESHOLDS={fwd5:1.0,fwd10:2.0,fwd20:4.0};
+const DEFAULT_SIGNALS={};
+SIGNAL_DEFS.forEach(s=>{DEFAULT_SIGNALS[s.name]={enabled:true,threshold:s.defaultThreshold}});
+const DEFAULT_SIGNAL_ORDER=SIGNAL_DEFS.map(s=>s.name);
+
+const SIGNALS=[
+{name:'清仓-跌破MA',position:0,type:'defense',color:'#22c55e'},
+{name:'满仓-涨破5%',position:100,type:'attack',color:'#ef4444'},
+{name:'满仓-量价共振',position:100,type:'attack',color:'#ef4444'},
+{name:'满仓-大盘撑腰',position:100,type:'attack',color:'#ef4444'},
+{name:'底仓-逆市试错',position:10,type:'attack',color:'#f97316'},
+{name:'观望-无效突破',position:0,type:'defense',color:'#6b7280'}
+];
+const SIGNAL_MAP={};
+SIGNALS.forEach(s=>{SIGNAL_MAP[s.name]=s});
+
+function judge(signalName,fwdReturn,horizon){
+if(fwdReturn===null)return'pending';
+const threshold=DEFAULT_THRESHOLDS[horizon];
+const isAttack=SIGNAL_MAP[signalName].type==='attack';
+if(isAttack){
+if(fwdReturn>threshold)return'pass';
+if(fwdReturn<-threshold)return'fail';
+return'neutral';
+}else{
+if(fwdReturn<-threshold)return'pass';
+if(fwdReturn>threshold)return'fail';
+return'neutral';
+}
+}
+
+function judgeScore(j){
+if(j==='pass')return 1;
+if(j==='neutral')return 0.5;
+if(j==='fail')return 0;
+return null;
+}
+
+function weightedAccuracy(j5,j10,j20){
+const s5=judgeScore(j5);
+const s10=judgeScore(j10);
+const s20=judgeScore(j20);
+if(s5===null||s10===null||s20===null)return null;
+return s5*0.2+s10*0.3+s20*0.5;
+}
+
+function calcMA(data,period,key){
+key=key||'close';
+const result=new Array(data.length).fill(null);
+for(let i=period-1;i<data.length;i++){
+let sum=0;
+for(let j=i-period+1;j<=i;j++){
+sum+=parseFloat(data[j][key]);
+}
+result[i]=sum/period;
+}
+return result;
+}
+
+function calcHs300Strong(data,index,confirmDays,hs300MaValues){
+if(confirmDays<=1){
+const hs300Close=parseFloat(data[index].hs300_close);
+const hs300MA=hs300MaValues[index];
+return!isNaN(hs300Close)&&hs300MA!==null&&hs300Close>hs300MA;
+}
+for(let d=0;d<confirmDays;d++){
+const idx=index-d;
+if(idx<0)return false;
+const hs300Close=parseFloat(data[idx].hs300_close);
+const hs300MA=hs300MaValues[idx];
+if(isNaN(hs300Close)||hs300MA===null||hs300Close<=hs300MA)return false;
+}
+return true;
+}
+
+function getSignal(row){
+const close=parseFloat(row.close);
+const ma20=parseFloat(row.zz500_MA20);
+const isHs300Strong=row.is_hs300_strong==='True';
+const isVolumeSurge=row.is_volume_surge==='True';
+if(close<ma20)return SIGNAL_MAP['清仓-跌破MA'];
+if(close>ma20*1.05)return SIGNAL_MAP['满仓-涨破5%'];
+if(isHs300Strong&&isVolumeSurge)return SIGNAL_MAP['满仓-量价共振'];
+if(isHs300Strong&&close>ma20*1.01)return SIGNAL_MAP['满仓-大盘撑腰'];
+if(!isHs300Strong&&close>ma20*1.01)return SIGNAL_MAP['底仓-逆市试错'];
+return SIGNAL_MAP['观望-无效突破'];
+}
+
+function processRealData(rawData,startDate,endDate){
+const filtered=rawData.filter(r=>r.zz500_MA20&&r.zz500_MA20.trim()!=='');
+const dateFiltered=filtered.filter(r=>{
+if(startDate&&r.date<startDate)return false;
+if(endDate&&r.date>endDate)return false;
+return true;
+});
+const data=dateFiltered.map(r=>({...r,signal:getSignal(r)}));
+let nav=1.0,benchNav=1.0,pos=0;
+for(let i=0;i<data.length;i++){
+const c=parseFloat(data[i].close);
+const pc=i>0?parseFloat(data[i-1].close):c;
+const sr=i>0?(c/pc-1):0;
+const dr=pos*sr;
+nav*=(1+dr);
+benchNav*=(1+sr);
+pos=data[i].signal.position/100;
+data[i].nav=nav;
+data[i].benchNav=benchNav;
+}
+for(let i=0;i<data.length;i++){
+const c=parseFloat(data[i].close);
+data[i].fwd5=i+5<data.length?(parseFloat(data[i+5].close)/c-1)*100:null;
+data[i].fwd10=i+10<data.length?(parseFloat(data[i+10].close)/c-1)*100:null;
+data[i].fwd20=i+20<data.length?(parseFloat(data[i+20].close)/c-1)*100:null;
+const j5=judge(data[i].signal.name,data[i].fwd5,'fwd5');
+const j10=judge(data[i].signal.name,data[i].fwd10,'fwd10');
+const j20=judge(data[i].signal.name,data[i].fwd20,'fwd20');
+data[i].j5=j5;
+data[i].j10=j10;
+data[i].j20=j20;
+data[i].wa=weightedAccuracy(j5,j10,j20);
+}
+return data;
+}
+
+function getSignalWithConfig(row,data,index,signalConfig,signalOrder,maValues,hs300MaValues,bottomPosition,hs300ConfirmDays,maPeriod){
+const close=parseFloat(row.close);
+const ma=maValues[index];
+if(ma===null)return SIGNAL_MAP['观望-无效突破'];
+const isHs300Strong=(maPeriod===20&&hs300ConfirmDays===1)?row.is_hs300_strong==='True':calcHs300Strong(data,index,hs300ConfirmDays,hs300MaValues);
+const isVolumeSurge=row.is_volume_surge==='True';
+for(const signalName of signalOrder){
+const cfg=signalConfig[signalName];
+if(!cfg||!cfg.enabled)continue;
+const threshold=cfg.threshold||(SIGNAL_DEFS.find(d=>d.name===signalName)||{}).defaultThreshold||1.0;
+if(signalName==='清仓-跌破MA'&&close<ma*threshold){
+return{...SIGNAL_MAP['清仓-跌破MA']};
+}
+if(signalName==='满仓-涨破5%'&&close>ma*threshold){
+return{...SIGNAL_MAP['满仓-涨破5%']};
+}
+if(signalName==='满仓-量价共振'&&isHs300Strong&&isVolumeSurge){
+return{...SIGNAL_MAP['满仓-量价共振']};
+}
+if(signalName==='满仓-大盘撑腰'&&isHs300Strong&&close>ma*threshold){
+return{...SIGNAL_MAP['满仓-大盘撑腰']};
+}
+if(signalName==='底仓-逆市试错'&&!isHs300Strong&&close>ma*threshold){
+return{...SIGNAL_MAP['底仓-逆市试错'],position:bottomPosition};
+}
+if(signalName==='观望-无效突破'){
+return{...SIGNAL_MAP['观望-无效突破']};
+}
+}
+return{...SIGNAL_MAP['观望-无效突破']};
+}
+
+function processRealDataWithConfig(rawData,signalConfig,customWeights,startDate,endDate,maPeriod,bottomPosition,hs300ConfirmDays,bufferEnabled,signalOrder){
+const filtered=rawData.filter(r=>r.close&&r.close.trim()!=='');
+const maValues=calcMA(filtered,maPeriod,'close');
+const hs300MaValues=calcMA(filtered,maPeriod,'hs300_close');
+const validIdx=[];
+for(let i=0;i<filtered.length;i++){
+const r=filtered[i];
+if(maValues[i]===null)continue;
+if(startDate&&r.date<startDate)continue;
+if(endDate&&r.date>endDate)continue;
+validIdx.push(i);
+}
+const data=validIdx.map(i=>({...filtered[i],ma:maValues[i]}));
+const validMaValues=validIdx.map(i=>maValues[i]);
+const validHs300MaValues=validIdx.map(i=>hs300MaValues[i]);
+data.forEach((r,i)=>{
+r.signal=getSignalWithConfig(r,data,i,signalConfig,signalOrder,validMaValues,validHs300MaValues,bottomPosition,hs300ConfirmDays,maPeriod);
+});
+let nav=1.0,benchNav=1.0,pos=0;
+for(let i=0;i<data.length;i++){
+const c=parseFloat(data[i].close);
+const pc=i>0?parseFloat(data[i-1].close):c;
+const sr=i>0?(c/pc-1):0;
+let newPos=data[i].signal.position/100;
+if(bufferEnabled&&pos>=1.0&&newPos>0&&newPos<1.0){
+newPos=0;
+}
+const dr=pos*sr;
+nav*=(1+dr);
+benchNav*=(1+sr);
+pos=newPos;
+data[i].nav=nav;
+data[i].benchNav=benchNav;
+}
+const w5=(customWeights&&customWeights.fwd5!=null?customWeights.fwd5:20)/100;
+const w10=(customWeights&&customWeights.fwd10!=null?customWeights.fwd10:30)/100;
+const w20=(customWeights&&customWeights.fwd20!=null?customWeights.fwd20:50)/100;
+for(let i=0;i<data.length;i++){
+const c=parseFloat(data[i].close);
+data[i].fwd5=i+5<data.length?(parseFloat(data[i+5].close)/c-1)*100:null;
+data[i].fwd10=i+10<data.length?(parseFloat(data[i+10].close)/c-1)*100:null;
+data[i].fwd20=i+20<data.length?(parseFloat(data[i+20].close)/c-1)*100:null;
+const j5=judge(data[i].signal.name,data[i].fwd5,'fwd5');
+const j10=judge(data[i].signal.name,data[i].fwd10,'fwd10');
+const j20=judge(data[i].signal.name,data[i].fwd20,'fwd20');
+data[i].j5=j5;
+data[i].j10=j10;
+data[i].j20=j20;
+const s5=judgeScore(j5);
+const s10=judgeScore(j10);
+const s20=judgeScore(j20);
+data[i].wa=(s5!==null&&s10!==null&&s20!==null)?s5*w5+s10*w10+s20*w20:null;
+}
+return data;
+}
+
+function toChartData(processedData){
+return processedData.map(r=>({
+date:r.date,
+nav:r.nav,
+cumRet:+((r.nav-1)*100).toFixed(2),
+wa:r.wa!==null?+(r.wa*100).toFixed(1):null
+}));
+}
+
+function generateTestData(rawData,weights,signals,startDate,endDate,maPeriod,bottomPosition,hs300ConfirmDays,bufferEnabled,signalOrder){
+const processed=processRealDataWithConfig(rawData,signals,weights,startDate,endDate,maPeriod,bottomPosition,hs300ConfirmDays,bufferEnabled,signalOrder);
+return toChartData(processed);
+}
+
+function Header({onToggleBacktest,backtestOpen}){
+return(
+<div className="sticky top-0 z-50 bg-[#0a0e17]/95 backdrop-blur border-b border-[#1e293b] px-6 py-3 flex items-center justify-between">
+<div className="flex items-center gap-4">
+<a href="index.html" className="text-gray-500 hover:text-white text-sm flex items-center gap-1 transition-colors">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+返回主页
+</a>
+<h1 className="text-xl font-bold tracking-wide text-white">策略调试</h1>
+<span className="text-xs text-gray-600 ml-2">STRATEGY DEBUGGER</span>
+</div>
+<div className="flex items-center gap-3">
+<button onClick={onToggleBacktest} className={`text-sm px-3 py-1 rounded transition-colors ${backtestOpen?'text-amber-400 bg-amber-400/10':'text-gray-500 hover:text-amber-400'}`}>
+{backtestOpen?'✕ 关闭回测':'📊 高级回测'}
+</button>
+<a href="review.html" className="text-gray-500 hover:text-cyan-400 text-sm transition-colors">复盘与AI</a>
+</div>
+</div>
+);
+}
+
+function WeightSlider({label,value,onChange,color}){
+return(
+<div className="mb-4">
+<div className="flex items-center justify-between mb-1">
+<span className="text-xs text-gray-400">{label}</span>
+<span className="text-sm font-bold" style={{color}}>{value}%</span>
+</div>
+<input type="range" min="0" max="100" step="5" value={value}
+className="slider-track" onChange={e=>onChange(+e.target.value)}/>
+</div>
+);
+}
+
+function SignalToggle({def,config,onToggle,onThresholdChange,dragHandleProps,isDragging}){
+return(
+<div className={`signal-row ${isDragging?'dragging':''}`} {...dragHandleProps}>
+<span className="drag-handle">⠿</span>
+<div className="toggle-switch" style={config.enabled?{background:def.color}:{background:'#1e293b'}}
+onClick={()=>onToggle(def.name,!config.enabled)}>
+{config.enabled&&<style>{`.toggle-switch[style*="${def.color}"]::after{transform:translateX(18px)}`}</style>}
+</div>
+<div className="flex-1 min-w-0">
+<div className="flex items-center gap-2">
+<span className="text-sm font-medium" style={{color:config.enabled?def.color:'#475569'}}>{def.name}</span>
+<span className="text-xs text-gray-600">{def.desc}</span>
+</div>
+{config.enabled&&(
+<div className="flex items-center gap-2 mt-1.5">
+<span className="text-xs text-gray-500">阈值</span>
+<input type="number" step="0.01" min="0" max="10" value={config.threshold}
+className="w-16 bg-[#0a0e17] border border-[#1e293b] rounded px-2 py-0.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"
+onChange={e=>onThresholdChange(def.name,+e.target.value)}/>
+</div>
+)}
+</div>
+</div>
+);
+}
+
+function ConfigPanel({weights,onWeightChange,signals,onSignalToggle,onSignalThresholdChange,
+strategyName,onStrategyNameChange,testing,onStartStop,canReplace,onReplace,
+startDate,onStartDateChange,endDate,onEndDateChange,
+bottomPosition,onBottomPositionChange,
+hs300ConfirmDays,onHs300ConfirmDaysChange,
+bufferEnabled,onBufferEnabledChange,
+maPeriod,onMaPeriodChange,
+signalOrder,onSignalOrderChange}){
+
+const[dragIdx,setDragIdx]=useState(null);
+const[overIdx,setOverIdx]=useState(null);
+
+const totalWeight=weights.fwd5+weights.fwd10+weights.fwd20;
+const isValid=totalWeight===100;
+
+const handleDragStart=(e,idx)=>{
+setDragIdx(idx);
+e.dataTransfer.effectAllowed='move';
+};
+const handleDragOver=(e,idx)=>{
+e.preventDefault();
+setOverIdx(idx);
+};
+const handleDragEnd=()=>{
+if(dragIdx!==null&&overIdx!==null&&dragIdx!==overIdx){
+const newOrder=[...signalOrder];
+const[removed]=newOrder.splice(dragIdx,1);
+newOrder.splice(overIdx,0,removed);
+onSignalOrderChange(newOrder);
+}
+setDragIdx(null);
+setOverIdx(null);
+};
+
+const orderedSignalDefs=signalOrder.map(name=>SIGNAL_DEFS.find(d=>d.name===name)).filter(Boolean);
+
+return(
+<div className="panel h-full">
+<div className="panel-header">
+<span className="text-sm font-semibold text-gray-300">策略参数配置</span>
+{testing&&<span className="flex items-center gap-1.5 text-xs text-green-400"><span className="w-2 h-2 rounded-full bg-green-400 pulse-dot"></span>测试运行中</span>}
+</div>
+<div className="panel-body overflow-y-auto" style={{maxHeight:'calc(100vh - 120px)'}}>
+<div className="mb-6">
+<div className="text-xs text-gray-500 uppercase tracking-wider mb-3">回测区间</div>
+<div className="flex items-center gap-2">
+<input type="date" value={startDate} onChange={e=>onStartDateChange(e.target.value)} min="2015-05-01"
+className="flex-1 bg-[#0a0e17] border border-[#1e293b] rounded px-2 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"/>
+<span className="text-gray-600 text-xs">至</span>
+<input type="date" value={endDate} onChange={e=>onEndDateChange(e.target.value)} min="2015-05-01"
+className="flex-1 bg-[#0a0e17] border border-[#1e293b] rounded px-2 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"/>
+</div>
+</div>
+
+<div className="mb-6">
+<div className="text-xs text-gray-500 uppercase tracking-wider mb-3">MA均线周期</div>
+<div className="flex gap-2">
+{[10,15,20,30].map(p=>(
+<button key={p} className={`ma-btn ${maPeriod===p?'active':''}`} onClick={()=>onMaPeriodChange(p)}>MA{p}</button>
+))}
+</div>
+<div className="text-xs text-gray-600 mt-1.5">切换后所有信号判定基准同步变更</div>
+</div>
+
+<div className="mb-6">
+<div className="text-xs text-gray-500 uppercase tracking-wider mb-3">加权权重</div>
+<WeightSlider label="5日权重" value={weights.fwd5} onChange={v=>onWeightChange('fwd5',v)} color="#3b82f6"/>
+<WeightSlider label="10日权重" value={weights.fwd10} onChange={v=>onWeightChange('fwd10',v)} color="#8b5cf6"/>
+<WeightSlider label="20日权重" value={weights.fwd20} onChange={v=>onWeightChange('fwd20',v)} color="#06b6d4"/>
+<div className="weight-bar mt-2">
+<div className="weight-bar-fill" style={{width:totalWeight+'%',background:isValid?'linear-gradient(90deg,#22c55e,#16a34a)':'linear-gradient(90deg,#ef4444,#dc2626)'}}></div>
+</div>
+<div className={`text-xs mt-1.5 font-medium ${isValid?'text-green-400':'text-red-400'}`}>
+{isValid?'✓ 权重合计 100%':`✗ 权重合计 ${totalWeight}%，需等于 100%`}
+</div>
+</div>
+
+<div className="mb-6">
+<div className="text-xs text-gray-500 uppercase tracking-wider mb-3">高级参数</div>
+<div className="mb-4">
+<div className="flex items-center justify-between mb-1">
+<span className="text-xs text-gray-400">底仓仓位比例</span>
+<span className="text-sm font-bold text-orange-400">{bottomPosition}%</span>
+</div>
+<input type="range" min="5" max="30" step="5" value={bottomPosition}
+className="slider-track" onChange={e=>onBottomPositionChange(+e.target.value)}/>
+<div className="text-xs text-gray-600 mt-1">逆市试错信号的仓位占比</div>
+</div>
+<div className="mb-4">
+<div className="flex items-center justify-between mb-1">
+<span className="text-xs text-gray-400">沪深300强弱确认天数</span>
+<span className="text-sm font-bold text-blue-400">{hs300ConfirmDays}天</span>
+</div>
+<input type="range" min="1" max="5" step="1" value={hs300ConfirmDays}
+className="slider-track" onChange={e=>onHs300ConfirmDaysChange(+e.target.value)}/>
+<div className="text-xs text-gray-600 mt-1">连续N日高于MA才判定为强市</div>
+</div>
+<div className="flex items-center justify-between py-2">
+<div>
+<span className="text-xs text-gray-400">满仓→底仓缓冲</span>
+<div className="text-xs text-gray-600">满仓→底仓中间插入一天观望</div>
+</div>
+<div className="toggle-switch" style={bufferEnabled?{background:'#22c55e'}:{background:'#1e293b'}}
+onClick={()=>onBufferEnabledChange(!bufferEnabled)}>
+{bufferEnabled&&<style>{`.toggle-switch[style*="background:#22c55e"]::after{transform:translateX(18px)}`}</style>}
+</div>
+</div>
+</div>
+
+<div className="mb-6">
+<div className="text-xs text-gray-500 uppercase tracking-wider mb-3">信号开关与优先级 <span className="text-gray-600 normal-case">（拖拽排序）</span></div>
+{orderedSignalDefs.map((s,idx)=>(
+<div key={s.name} className={overIdx===idx?'drag-over':''}
+draggable
+onDragStart={e=>handleDragStart(e,idx)}
+onDragOver={e=>handleDragOver(e,idx)}
+onDragEnd={handleDragEnd}
+onDragLeave={()=>setOverIdx(null)}>
+<SignalToggle def={s} config={signals[s.name]}
+onToggle={onSignalToggle} onThresholdChange={onSignalThresholdChange}
+isDragging={dragIdx===idx}/>
+</div>
+))}
+</div>
+
+<div className="mb-6">
+<div className="text-xs text-gray-500 uppercase tracking-wider mb-3">策略命名</div>
+<input type="text" value={strategyName} onChange={e=>onStrategyNameChange(e.target.value)}
+placeholder="输入策略版本名称，如 V9.09"
+className="w-full bg-[#0a0e17] border border-[#1e293b] rounded-lg px-3 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:border-blue-500 focus:outline-none transition-colors"/>
+</div>
+
+<div className="flex flex-col gap-3">
+<button className={testing?'btn-danger':'btn-primary'} onClick={onStartStop} disabled={!isValid&&!testing}>
+{testing?'⏹ 停止测试':'▶ 开始测试'}
+</button>
+<button className={`btn-replace ${canReplace?'active':''}`} onClick={canReplace?onReplace:undefined} disabled={!canReplace}>
+🔄 替换现有策略
+</button>
+{!canReplace&&testing&&<div className="text-xs text-gray-600 text-center">测试策略需优于现有策略方可替换</div>}
+</div>
+</div>
+</div>
+);
+}
+
+function ChartSummary({label,current,max,diff,unit}){
+return(
+<div className="flex items-center gap-6 mb-3">
+<div className="flex items-center gap-2">
+<span className="text-xs text-gray-500">{label}当前</span>
+<span className="text-lg font-bold text-white">{current}{unit}</span>
+</div>
+<div className="flex items-center gap-2">
+<span className="text-xs text-gray-500">最高</span>
+<span className="text-sm font-medium text-gray-300">{max}{unit}</span>
+</div>
+<div className="flex items-center gap-2">
+<span className="text-xs text-gray-500">差值</span>
+<span className={`text-sm font-bold ${diff>=0?'text-green-400':'text-red-400'}`}>{diff>=0?'+':''}{diff}{unit}</span>
+</div>
+</div>
+);
+}
+
+function CumulativeReturnChart({baselineData,testData,testing}){
+const chartData=baselineData.map((b,i)=>{
+const t=testData[i];
+return{date:b.date,baseline:b.cumRet,test:t?t.cumRet:null};
+});
+
+const baseCurrent=baselineData.length>0?baselineData[baselineData.length-1].cumRet:0;
+const testCurrent=testData.length>0?testData[testData.length-1].cumRet:0;
+const baseMax=Math.max(...baselineData.map(d=>d.cumRet));
+const testMax=testData.length>0?Math.max(...testData.map(d=>d.cumRet)):0;
+const diff=testing?(testCurrent-baseCurrent):0;
+
+const minV=Math.min(...chartData.map(d=>Math.min(d.baseline,d.test||0)));
+const maxV=Math.max(...chartData.map(d=>Math.max(d.baseline,d.test||0)));
+const pad=(maxV-minV)*0.1||5;
+
+return(
+<div className="panel mb-6">
+<div className="panel-header">
+<span className="text-sm font-semibold text-gray-300">累计收益对比曲线</span>
+</div>
+<div className="panel-body">
+<ChartSummary label="测试策略" current={testing?testCurrent:0} max={testing?testMax:0} diff={diff} unit="%"/>
+<div style={{height:260}}>
+<ResponsiveContainer width="100%" height="100%">
+<LineChart data={chartData} margin={{top:10,right:30,left:10,bottom:0}}>
+<CartesianGrid strokeDasharray="3 3" stroke="#1e293b"/>
+<XAxis dataKey="date" tick={{fontSize:10,fill:'#64748b'}} interval={Math.floor(chartData.length/6)}/>
+<YAxis domain={[minV-pad,maxV+pad]} tick={{fontSize:10,fill:'#64748b'}} tickFormatter={v=>v.toFixed(1)+'%'}/>
+<Tooltip content={({active,payload})=>{
+if(!active||!payload||!payload.length)return null;
+const d=payload[0].payload;
+return(
+<div style={{background:'#1e293b',border:'1px solid #334155',borderRadius:8,padding:12,fontSize:12,boxShadow:'0 4px 12px rgba(0,0,0,0.5)'}}>
+<div style={{color:'#9ca3af',marginBottom:6}}>{d.date}</div>
+<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}><span style={{width:8,height:8,borderRadius:'50%',background:'#22d3ee',display:'inline-block'}}></span><span style={{color:'#9ca3af'}}>现有策略</span><span style={{color:'#fff',fontWeight:600}}>{d.baseline.toFixed(2)}%</span></div>
+{d.test!==null&&<div style={{display:'flex',alignItems:'center',gap:8}}><span style={{width:8,height:8,borderRadius:'50%',background:'#fbbf24',display:'inline-block'}}></span><span style={{color:'#9ca3af'}}>测试策略</span><span style={{color:'#fff',fontWeight:600}}>{d.test.toFixed(2)}%</span></div>}
+</div>
+);
+}}/>
+<Legend payload={[{value:'现有策略',type:'line',color:'#22d3ee'},{value:'测试策略',type:'line',color:'#fbbf24'}]}/>
+<Line type="monotone" dataKey="baseline" stroke="#22d3ee" strokeWidth={2} dot={false} name="现有策略"/>
+{testing&&<Line type="monotone" dataKey="test" stroke="#fbbf24" strokeWidth={2} dot={false} strokeDasharray="6 3" name="测试策略"/>}
+</LineChart>
+</ResponsiveContainer>
+</div>
+</div>
+</div>
+);
+}
+
+function AccuracyChart({baselineData,testData,testing}){
+const window=20;
+function rollingWA(data,win){
+const result=[];
+for(let i=0;i<data.length;i++){
+if(i<win-1){result.push({idx:i+1,wa:null});continue}
+const slice=data.slice(i-win+1,i+1);
+const avg=slice.reduce((a,b)=>a+b.wa,0)/win;
+result.push({idx:i+1,wa:+avg.toFixed(1)});
+}
+return result;
+}
+const baseRolling=rollingWA(baselineData,window);
+const testRolling=testing?rollingWA(testData,window):[];
+const chartData=baseRolling.map((b,i)=>{
+const t=testRolling[i];
+return{idx:b.idx,baseline:b.wa,test:t?t.wa:null};
+}).filter(d=>d.baseline!==null);
+
+const baseVals=chartData.map(d=>d.baseline).filter(v=>v!==null);
+const testVals=chartData.map(d=>d.test).filter(v=>v!==null);
+const baseCurrent=baseVals.length>0?baseVals[baseVals.length-1]:0;
+const testCurrent=testVals.length>0?testVals[testVals.length-1]:0;
+const baseMax=baseVals.length>0?Math.max(...baseVals):0;
+const testMax=testVals.length>0?Math.max(...testVals):0;
+const diff=testing?(testCurrent-baseCurrent):0;
+
+const minV=Math.min(...baseVals,...testVals);
+const maxV=Math.max(...baseVals,...testVals);
+const padV=(maxV-minV)*0.1||5;
+
+return(
+<div className="panel">
+<div className="panel-header">
+<span className="text-sm font-semibold text-gray-300">准确率对比曲线（滚动{window}次信号）</span>
+</div>
+<div className="panel-body">
+<ChartSummary label="测试策略" current={testing?testCurrent:0} max={testing?testMax:0} diff={diff} unit="%"/>
+<div style={{height:260}}>
+<ResponsiveContainer width="100%" height="100%">
+<LineChart data={chartData} margin={{top:10,right:30,left:10,bottom:0}}>
+<CartesianGrid strokeDasharray="3 3" stroke="#1e293b"/>
+<XAxis dataKey="idx" tick={{fontSize:10,fill:'#64748b'}} label={{value:'信号次数',position:'insideBottomRight',offset:-5,fontSize:10,fill:'#475569'}}/>
+<YAxis domain={[Math.min(minV-padV,0),maxV+padV]} tick={{fontSize:10,fill:'#64748b'}} tickFormatter={v=>v.toFixed(0)+'%'}/>
+<Tooltip content={({active,payload})=>{
+if(!active||!payload||!payload.length)return null;
+const d=payload[0].payload;
+return(
+<div style={{background:'#1e293b',border:'1px solid #334155',borderRadius:8,padding:12,fontSize:12,boxShadow:'0 4px 12px rgba(0,0,0,0.5)'}}>
+<div style={{color:'#9ca3af',marginBottom:6}}>第 {d.idx} 次信号</div>
+<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}><span style={{width:8,height:8,borderRadius:'50%',background:'#22d3ee',display:'inline-block'}}></span><span style={{color:'#9ca3af'}}>现有策略</span><span style={{color:'#fff',fontWeight:600}}>{d.baseline?d.baseline.toFixed(1):'--'}%</span></div>
+{d.test!==null&&<div style={{display:'flex',alignItems:'center',gap:8}}><span style={{width:8,height:8,borderRadius:'50%',background:'#fbbf24',display:'inline-block'}}></span><span style={{color:'#9ca3af'}}>测试策略</span><span style={{color:'#fff',fontWeight:600}}>{d.test.toFixed(1)}%</span></div>}
+</div>
+);
+}}/>
+<Legend payload={[{value:'现有策略',type:'line',color:'#22d3ee'},{value:'测试策略',type:'line',color:'#fbbf24'}]}/>
+<ReferenceLine y={50} stroke="#334155" strokeDasharray="3 3"/>
+<Line type="monotone" dataKey="baseline" stroke="#22d3ee" strokeWidth={2} dot={false} name="现有策略"/>
+{testing&&<Line type="monotone" dataKey="test" stroke="#fbbf24" strokeWidth={2} dot={false} strokeDasharray="6 3" name="测试策略"/>}
+</LineChart>
+</ResponsiveContainer>
+</div>
+</div>
+</div>
+);
+}
+
+function StrategyLog({logs,onAddNote}){
+const[editingIdx,setEditingIdx]=useState(null);
+const[noteText,setNoteText]=useState('');
+
+const handleSaveNote=(idx)=>{
+onAddNote(idx,noteText);
+setEditingIdx(null);
+setNoteText('');
+};
+
+return(
+<div className="panel">
+<div className="panel-header">
+<span className="text-sm font-semibold text-gray-300">策略修改日志</span>
+<span className="text-xs text-gray-600">只可追加，不可删除</span>
+</div>
+<div className="overflow-x-auto">
+<table className="w-full text-sm">
+<thead>
+<tr className="border-b border-[#1e293b] bg-[#0d1321]">
+<th className="py-3 px-4 text-gray-500 text-xs font-medium text-left">版本名称</th>
+<th className="py-3 px-4 text-gray-500 text-xs font-medium text-left">生效时间</th>
+<th className="py-3 px-4 text-gray-500 text-xs font-medium text-left">关键参数变化摘要</th>
+<th className="py-3 px-4 text-gray-500 text-xs font-medium text-left">替换原因</th>
+<th className="py-3 px-4 text-gray-500 text-xs font-medium text-left">运行状态</th>
+<th className="py-3 px-4 text-gray-500 text-xs font-medium text-left">备注</th>
+</tr>
+</thead>
+<tbody>
+{logs.map((log,idx)=>(
+<tr key={idx} className="border-b border-[#1e293b]/30 hover:bg-[#0f172a] transition-colors">
+<td className="py-3 px-4 font-mono text-cyan-400 font-semibold">{log.version}</td>
+<td className="py-3 px-4 text-gray-400 text-xs">{log.effectiveDate}</td>
+<td className="py-3 px-4 text-gray-300 text-xs max-w-[240px]">{log.paramSummary}</td>
+<td className="py-3 px-4 text-gray-400 text-xs">{log.replaceReason||'—'}</td>
+<td className="py-3 px-4">
+<span className={`inline-flex items-center gap-1.5 text-xs font-medium ${log.status==='运行中'?'text-green-400':'text-gray-500'}`}>
+{log.status==='运行中'&&<span className="w-1.5 h-1.5 rounded-full bg-green-400 pulse-dot"></span>}
+{log.status}
+</span>
+</td>
+<td className="py-3 px-4">
+{editingIdx===idx?(
+<div className="flex items-center gap-2">
+<input type="text" value={noteText} onChange={e=>setNoteText(e.target.value)}
+className="w-32 bg-[#0a0e17] border border-[#1e293b] rounded px-2 py-1 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"
+placeholder="输入备注..." autoFocus/>
+<button className="text-xs text-blue-400 hover:text-blue-300" onClick={()=>handleSaveNote(idx)}>保存</button>
+<button className="text-xs text-gray-500 hover:text-gray-400" onClick={()=>{setEditingIdx(null);setNoteText('')}}>取消</button>
+</div>
+):(
+<div className="flex items-center gap-2">
+<span className="text-xs text-gray-500">{log.note||'—'}</span>
+<button className="text-xs text-gray-600 hover:text-gray-400 transition-colors" onClick={()=>{setEditingIdx(idx);setNoteText(log.note||'')}}>✏️</button>
+</div>
+)}
+</td>
+</tr>
+))}
+</tbody>
+</table>
+</div>
+</div>
+);
+}
+
+function BacktestPanel({params,onParamChange,running,progress,report,onStart}){
+const equityChartRef=useRef(null);
+const statusChartRef=useRef(null);
+const equityChartInst=useRef(null);
+const statusChartInst=useRef(null);
+
+useEffect(()=>{
+if(!report)return;
+if(equityChartRef.current){
+if(equityChartInst.current)equityChartInst.current.destroy();
+const daily=report.daily_records||[];
+const bench=report.benchmark_records||[];
+const labels=daily.map(d=>d.date);
+const navData=daily.map(d=>d.nav);
+const benchData=bench.length===daily.length?bench.map(d=>d.nav):[];
+equityChartInst.current=new Chart(equityChartRef.current,{
+type:'line',
+data:{labels,datasets:[
+{label:'策略净值',data:navData,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.1)',fill:true,tension:0.1,pointRadius:0,borderWidth:2},
+{label:'基准净值',data:benchData,borderColor:'#6b7280',borderDash:[4,3],tension:0.1,pointRadius:0,borderWidth:1,fill:false}
+]},
+options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8b949e',font:{size:11}}}},scales:{x:{ticks:{color:'#64748b',font:{size:9},maxTicksLimit:8},grid:{color:'#1e293b'}},y:{ticks:{color:'#64748b',font:{size:10}},grid:{color:'#1e293b'}}}}
+});
+}
+if(statusChartRef.current&&report.status_distribution){
+if(statusChartInst.current)statusChartInst.current.destroy();
+const sd=report.status_distribution;
+const labels=Object.keys(sd);
+const data=Object.values(sd);
+const colors=['#ef4444','#22c55e','#6b7280','#3b82f6','#f97316','#a855f7'];
+statusChartInst.current=new Chart(statusChartRef.current,{
+type:'doughnut',
+data:{labels,datasets:[{data,backgroundColor:colors.slice(0,labels.length),borderColor:'#111827',borderWidth:2}]},
+options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#8b949e',font:{size:11},padding:12}}}}
+});
+}
+},[report]);
+
+const p=(key)=>params[key];
+const setP=(key,val)=>onParamChange({...params,[key]:val});
+const s=report?report.summary:null;
+
+return(
+<div className="mt-6 border-t border-[#1e293b] pt-6">
+<div className="text-lg font-bold text-white mb-4">📊 高级回测</div>
+<div className="panel mb-4">
+<div className="panel-header"><span className="text-sm font-semibold text-gray-300">回测参数</span></div>
+<div className="panel-body">
+<div className="grid grid-cols-4 gap-4">
+<div><label className="block text-xs text-gray-500 mb-1">起始日期</label><input type="date" value={p('start_date')} onChange={e=>setP('start_date',e.target.value)} className="w-full bg-[#0a0e17] border border-[#1e293b] rounded px-2 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"/></div>
+<div><label className="block text-xs text-gray-500 mb-1">结束日期</label><input type="date" value={p('end_date')} onChange={e=>setP('end_date',e.target.value)} className="w-full bg-[#0a0e17] border border-[#1e293b] rounded px-2 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"/></div>
+<div><label className="block text-xs text-gray-500 mb-1">初始资金（元）</label><input type="number" value={p('initial_capital')} onChange={e=>setP('initial_capital',+e.target.value)} className="w-full bg-[#0a0e17] border border-[#1e293b] rounded px-2 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"/></div>
+<div><label className="block text-xs text-gray-500 mb-1">初始仓位（%）</label><input type="number" value={p('initial_position_pct')} onChange={e=>setP('initial_position_pct',+e.target.value)} className="w-full bg-[#0a0e17] border border-[#1e293b] rounded px-2 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"/></div>
+<div><label className="block text-xs text-gray-500 mb-1">现金年化收益率（%）</label><input type="number" value={p('cash_yield')} onChange={e=>setP('cash_yield',+e.target.value)} className="w-full bg-[#0a0e17] border border-[#1e293b] rounded px-2 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"/></div>
+<div><label className="block text-xs text-gray-500 mb-1">调仓间隔（交易日）</label><input type="number" value={p('rebalance_interval')} onChange={e=>setP('rebalance_interval',+e.target.value)} className="w-full bg-[#0a0e17] border border-[#1e293b] rounded px-2 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"/></div>
+<div><label className="block text-xs text-gray-500 mb-1">月定投金额（元）</label><input type="number" value={p('monthly_sip')} onChange={e=>setP('monthly_sip',+e.target.value)} className="w-full bg-[#0a0e17] border border-[#1e293b] rounded px-2 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"/></div>
+</div>
+<button className="btn-primary w-full mt-4" onClick={onStart} disabled={running}>{running?'回测进行中...':'开始回测'}</button>
+</div>
+</div>
+{running&&(
+<div className="mb-4">
+<div className="w-full h-5 bg-[#21262d] rounded-full overflow-hidden">
+<div className="h-full rounded-full transition-all duration-300" style={{width:progress+'%',background:'linear-gradient(135deg,#8B5CF6,#A78BFA)'}}></div>
+</div>
+<div className="text-xs text-gray-500 text-center mt-1">{progress}% · 处理中...</div>
+</div>
+)}
+{report&&s&&(
+<div>
+<div className="grid grid-cols-4 gap-3 mb-4">
+{[
+{label:'总收益',value:s.total_return.toFixed(2)+'%',color:s.total_return>=0?'#22c55e':'#ef4444'},
+{label:'年化收益',value:s.annualized_return.toFixed(2)+'%',color:s.annualized_return>=0?'#22c55e':'#ef4444'},
+{label:'最大回撤',value:s.max_drawdown.toFixed(2)+'%',color:'#ef4444'},
+{label:'日胜率',value:s.win_rate.toFixed(1)+'%',color:s.win_rate>=50?'#22c55e':'#d29922'},
+{label:'盈亏比',value:s.profit_loss_ratio.toFixed(2),color:s.profit_loss_ratio>=1?'#22c55e':'#d29922'},
+{label:'最终净值',value:(s.final_value/s.initial_capital).toFixed(4),color:'#3b82f6'},
+{label:'初始资金',value:s.initial_capital.toLocaleString(),color:'#e6edf3'},
+{label:'最终总值',value:s.final_value.toLocaleString(),color:'#e6edf3'}
+].map((c,i)=>(
+<div key={i} className="bg-[#111827] border border-[#1e293b] rounded-xl p-4 text-center">
+<div className="text-xs text-gray-500 mb-1">{c.label}</div>
+<div className="text-xl font-bold" style={{color:c.color}}>{c.value}</div>
+</div>
+))}
+</div>
+<div className="grid grid-cols-2 gap-4 mb-4">
+<div className="panel"><div className="panel-header"><span className="text-sm font-semibold text-gray-300">净值曲线</span></div><div className="panel-body" style={{height:280}}><canvas ref={equityChartRef}></canvas></div></div>
+<div className="panel"><div className="panel-header"><span className="text-sm font-semibold text-gray-300">市场状态分布</span></div><div className="panel-body" style={{height:280}}><canvas ref={statusChartRef}></canvas></div></div>
+</div>
+{report.monthly_returns&&(
+<div className="panel mb-4">
+<div className="panel-header"><span className="text-sm font-semibold text-gray-300">月度收益率</span></div>
+<div className="panel-body"><div className="grid grid-cols-6 gap-1">
+{Object.entries(report.monthly_returns).map(([k,v])=>{
+const c=v>=0?'#22c55e':'#ef4444';
+return<div key={k} className="text-center p-2 rounded" style={{background:v>=0?'rgba(34,197,94,0.08)':'rgba(239,68,68,0.08)'}}>
+<div className="text-xs text-gray-500">{k}</div>
+<div className="text-sm font-bold" style={{color:c}}>{v>=0?'+':''}{v.toFixed(2)}%</div>
+</div>;
+})}
+</div></div>
+</div>
+)}
+{report.yearly_stats&&(
+<div className="panel mb-4">
+<div className="panel-header"><span className="text-sm font-semibold text-gray-300">年度统计</span></div>
+<div className="panel-body overflow-x-auto">
+<table className="w-full text-sm">
+<thead><tr className="border-b border-[#1e293b]">
+<th className="py-2 px-3 text-gray-500 text-xs text-left">年度</th>
+<th className="py-2 px-3 text-gray-500 text-xs text-left">收益率</th>
+<th className="py-2 px-3 text-gray-500 text-xs text-left">日胜率</th>
+<th className="py-2 px-3 text-gray-500 text-xs text-left">最大回撤</th>
+<th className="py-2 px-3 text-gray-500 text-xs text-left">交易日</th>
+</tr></thead>
+<tbody>
+{report.yearly_stats.map((y,i)=>{
+const rc=y.return>=0?'#22c55e':'#ef4444';
+const wc=y.win_rate>=50?'#22c55e':'#d29922';
+return<tr key={i} className="border-b border-[#1e293b]/30">
+<td className="py-2 px-3 font-bold">{y.year}</td>
+<td className="py-2 px-3 font-bold" style={{color:rc}}>{y.return>=0?'+':''}{y.return.toFixed(2)}%</td>
+<td className="py-2 px-3" style={{color:wc}}>{y.win_rate.toFixed(1)}%</td>
+<td className="py-2 px-3 text-red-400">{y.max_dd.toFixed(2)}%</td>
+<td className="py-2 px-3 text-gray-400">{y.days}天</td>
+</tr>;
+})}
+</tbody>
+</table>
+</div>
+</div>
+)}
+</div>
+)}
+</div>
+);
+}
+
+function ConfirmModal({open,onConfirm,onCancel,strategyName}){
+const confirmBtnRef=useRef(null);
+useEffect(()=>{
+if(open){
+setTimeout(()=>{if(confirmBtnRef.current)confirmBtnRef.current.focus()},50);
+}
+},[open]);
+useEffect(()=>{
+if(!open)return;
+const handleKeyDown=(e)=>{
+if(e.key==='Escape')onCancel();
+};
+document.addEventListener('keydown',handleKeyDown);
+return()=>document.removeEventListener('keydown',handleKeyDown);
+},[open,onCancel]);
+if(!open)return null;
+return(
+<div className="modal-overlay" onClick={onCancel}>
+<div className="modal-box" onClick={e=>e.stopPropagation()}>
+<div className="text-lg font-bold text-white mb-3">确认替换策略</div>
+<div className="text-sm text-gray-400 mb-2">
+确定要将当前运行策略替换为 <span className="text-amber-400 font-semibold">{strategyName}</span> 吗？
+</div>
+<div className="text-xs text-gray-500 mb-6">此操作将更新策略配置参数，并记录到修改日志中。</div>
+<div className="flex justify-end gap-3">
+<button className="px-4 py-2 rounded-lg text-sm bg-[#0a0e17] text-gray-400 border border-[#1e293b] hover:border-gray-500 transition-colors" onClick={onCancel}>取消</button>
+<button ref={confirmBtnRef} className="px-4 py-2 rounded-lg text-sm bg-amber-500 text-white font-semibold hover:bg-amber-400 transition-colors" onClick={onConfirm}>确认替换</button>
+</div>
+</div>
+</div>
+);
+}
+
+function App(){
+const[rawData,setRawData]=useState(null);
+const[loading,setLoading]=useState(true);
+const[error,setError]=useState(null);
+const[weights,setWeights]=useState({...DEFAULT_WEIGHTS});
+const[signals,setSignals]=useState(JSON.parse(JSON.stringify(DEFAULT_SIGNALS)));
+const[strategyName,setStrategyName]=useState('');
+const[testing,setTesting]=useState(false);
+const[showConfirm,setShowConfirm]=useState(false);
+const[baselineData,setBaselineData]=useState([]);
+const[testData,setTestData]=useState([]);
+const[startDate,setStartDate]=useState('2015-05-01');
+const[endDate,setEndDate]=useState('');
+const[bottomPosition,setBottomPosition]=useState(10);
+const[hs300ConfirmDays,setHs300ConfirmDays]=useState(1);
+const[bufferEnabled,setBufferEnabled]=useState(false);
+const[maPeriod,setMaPeriod]=useState(20);
+const[signalOrder,setSignalOrder]=useState([...DEFAULT_SIGNAL_ORDER]);
+const[logs,setLogs]=useState([
+{version:'V9.08',effectiveDate:'2026-04-01',paramSummary:'初始版本，5日权重20%、10日权重30%、20日权重50%，六信号全开',replaceReason:'基线版本',status:'运行中',note:''}
+]);
+const[backtestOpen,setBacktestOpen]=useState(false);
+const[btParams,setBtParams]=useState({start_date:'2020-01-02',end_date:'2026-04-30',initial_capital:100000,initial_position_pct:50,cash_yield:2,rebalance_interval:1,monthly_sip:0});
+const[btRunning,setBtRunning]=useState(false);
+const[btProgress,setBtProgress]=useState(0);
+const[btReport,setBtReport]=useState(null);
+const[btTaskId,setBtTaskId]=useState(null);
+
+const loadCSV=useCallback(async()=>{
+let csvText;
+if(window.electronAPI&&window.electronAPI.readFile){
+csvText=await window.electronAPI.readFile('zz500_factors.csv');
+}else{
+const resp=await fetch('./zz500_factors.csv');
+csvText=await resp.text();
+}
+const parsed=Papa.parse(csvText,{header:true,skipEmptyLines:true});
+setRawData(parsed.data);
+const processed=processRealData(parsed.data,'2015-05-01','');
+setBaselineData(toChartData(processed));
+},[]);
+
+useEffect(()=>{
+(async()=>{
+try{
+await loadCSV();
+}catch(e){setError(e.message)}finally{setLoading(false)}
+})();
+},[loadCSV]);
+
+useEffect(()=>{
+const onVisible=()=>{
+if(document.visibilityState==='visible'&&rawData){
+loadCSV().catch(()=>{});
+}
+};
+document.addEventListener('visibilitychange',onVisible);
+return()=>document.removeEventListener('visibilitychange',onVisible);
+},[rawData,loadCSV]);
+
+useEffect(()=>{
+if(!rawData)return;
+const processed=processRealData(rawData,startDate,endDate);
+setBaselineData(toChartData(processed));
+if(testing){
+const newTestData=generateTestData(rawData,weights,signals,startDate,endDate,maPeriod,bottomPosition,hs300ConfirmDays,bufferEnabled,signalOrder);
+setTestData(newTestData);
+}
+},[startDate,endDate]);
+
+const handleWeightChange=useCallback((key,val)=>{
+setWeights(prev=>({...prev,[key]:val}));
+},[]);
+
+const handleSignalToggle=useCallback((name,enabled)=>{
+setSignals(prev=>({...prev,[name]:{...prev[name],enabled}}));
+},[]);
+
+const handleSignalThreshold=useCallback((name,threshold)=>{
+setSignals(prev=>({...prev,[name]:{...prev[name],threshold}}));
+},[]);
+
+const canReplace=useMemo(()=>{
+if(!testing||testData.length<20)return false;
+const baseLast=baselineData[baselineData.length-1];
+const testLast=testData[testData.length-1];
+return testLast.cumRet>baseLast.cumRet||testLast.wa>baseLast.wa;
+},[testing,testData,baselineData]);
+
+const handleStartStop=useCallback(()=>{
+if(testing){
+setTesting(false);
+setTestData([]);
+}else{
+if(!rawData)return;
+const newTestData=generateTestData(rawData,weights,signals,startDate,endDate,maPeriod,bottomPosition,hs300ConfirmDays,bufferEnabled,signalOrder);
+setTestData(newTestData);
+setTesting(true);
+}
+},[testing,rawData,weights,signals,startDate,endDate,maPeriod,bottomPosition,hs300ConfirmDays,bufferEnabled,signalOrder]);
+
+const handleReplace=useCallback(()=>{
+setShowConfirm(true);
+},[]);
+
+const handleConfirmReplace=useCallback(()=>{
+const now=new Date();
+const dateStr=now.toISOString().split('T')[0];
+const name=strategyName.trim()||'V9.09';
+const weightChanges=[];
+if(weights.fwd5!==DEFAULT_WEIGHTS.fwd5)weightChanges.push(`5日权重从${DEFAULT_WEIGHTS.fwd5}%调整为${weights.fwd5}%`);
+if(weights.fwd10!==DEFAULT_WEIGHTS.fwd10)weightChanges.push(`10日权重从${DEFAULT_WEIGHTS.fwd10}%调整为${weights.fwd10}%`);
+if(weights.fwd20!==DEFAULT_WEIGHTS.fwd20)weightChanges.push(`20日权重从${DEFAULT_WEIGHTS.fwd20}%调整为${weights.fwd20}%`);
+if(bottomPosition!==10)weightChanges.push(`底仓仓位从10%调整为${bottomPosition}%`);
+if(hs300ConfirmDays!==1)weightChanges.push(`沪深300确认天数从1调整为${hs300ConfirmDays}`);
+if(bufferEnabled)weightChanges.push(`启用满仓→底仓缓冲`);
+if(maPeriod!==20)weightChanges.push(`MA周期从20调整为${maPeriod}`);
+const disabledSignals=SIGNAL_DEFS.filter(s=>!signals[s.name].enabled);
+if(disabledSignals.length>0)weightChanges.push(`禁用${disabledSignals.map(s=>s.name).join('、')}`);
+const enabledSignals=SIGNAL_DEFS.filter(s=>signals[s.name].enabled&&s.defaultThreshold!==signals[s.name].threshold);
+if(enabledSignals.length>0)weightChanges.push(`调整${enabledSignals.map(s=>s.name+'阈值→'+signals[s.name].threshold).join('、')}`);
+const defaultOrderStr=DEFAULT_SIGNAL_ORDER.join(',');
+const currentOrderStr=signalOrder.join(',');
+if(defaultOrderStr!==currentOrderStr)weightChanges.push(`信号优先级已调整`);
+
+const summary=weightChanges.length>0?weightChanges.join('；'):'参数未变化';
+
+setLogs(prev=>prev.map(l=>({...l,status:'已停用'})).concat([{
+version:name,effectiveDate:dateStr,paramSummary:summary,
+replaceReason:`测试策略综合表现优于V9.08`,status:'运行中',note:''
+}]));
+
+setTesting(false);
+setTestData([]);
+setStrategyName('');
+setWeights({...DEFAULT_WEIGHTS});
+setSignals(JSON.parse(JSON.stringify(DEFAULT_SIGNALS)));
+setBottomPosition(10);
+setHs300ConfirmDays(1);
+setBufferEnabled(false);
+setMaPeriod(20);
+setSignalOrder([...DEFAULT_SIGNAL_ORDER]);
+setShowConfirm(false);
+},[strategyName,weights,signals,bottomPosition,hs300ConfirmDays,bufferEnabled,maPeriod,signalOrder]);
+
+const handleAddNote=useCallback((idx,note)=>{
+setLogs(prev=>{
+const next=[...prev];
+next[idx]={...next[idx],note};
+return next;
+});
+},[]);
+
+const getApiBase=useCallback(()=>{
+if(window.electronAPI&&window.electronAPI.startBackend){
+const result=window.electronAPI.startBackend();
+if(result&&result.port)return'http://localhost:'+result.port+'/api';
+}
+return'http://localhost:5001/api';
+},[]);
+
+const startBacktest=useCallback(async()=>{
+setBtRunning(true);
+setBtProgress(0);
+setBtReport(null);
+try{
+const apiBase=getApiBase();
+const resp=await fetch(apiBase+'/start-backtest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(btParams)});
+const result=await resp.json();
+if(result.success){
+setBtTaskId(result.task_id);
+pollBacktestStatus(result.task_id);
+}else{
+alert('启动回测失败');
+setBtRunning(false);
+}
+}catch(e){
+alert('请求失败: '+e.message);
+setBtRunning(false);
+}
+},[btParams,getApiBase]);
+
+const pollBacktestStatus=useCallback((taskId)=>{
+const apiBase=getApiBase();
+const poll=async()=>{
+try{
+const resp=await fetch(apiBase+'/backtest-status?task_id='+taskId);
+const status=await resp.json();
+if(status.status==='running'||status.status==='pending'){
+setBtProgress(status.progress||0);
+setTimeout(poll,500);
+}else if(status.status==='done'){
+setBtProgress(100);
+setBtReport(status.report);
+setBtRunning(false);
+}else if(status.status==='error'){
+alert('回测失败: '+status.message);
+setBtRunning(false);
+}
+}catch(e){
+setTimeout(poll,1000);
+}
+};
+poll();
+},[getApiBase]);
+
+if(loading)return(
+<div className="flex items-center justify-center h-screen">
+<div className="text-center">
+<div className="mx-auto mb-4" style={{width:40,height:40,border:'3px solid #1e293b',borderTopColor:'#3b82f6',borderRadius:'50%',animation:'spin 1s linear infinite'}}></div>
+<div className="text-gray-400">加载数据中...</div>
+</div>
+</div>
+);
+if(error)return<div className="flex items-center justify-center h-screen text-red-400 text-lg">加载失败: {error}</div>;
+if(!rawData||baselineData.length===0)return<div className="flex items-center justify-center h-screen text-gray-400 text-lg">无数据</div>;
+
+return(
+<div className="min-h-screen pb-8">
+<Header onToggleBacktest={()=>setBacktestOpen(!backtestOpen)} backtestOpen={backtestOpen}/>
+<div className="max-w-[1600px] mx-auto px-6 pt-6">
+<div className="grid grid-cols-12 gap-6 mb-6">
+<div className="col-span-3">
+<ConfigPanel weights={weights} onWeightChange={handleWeightChange}
+signals={signals} onSignalToggle={handleSignalToggle} onSignalThresholdChange={handleSignalThreshold}
+strategyName={strategyName} onStrategyNameChange={setStrategyName}
+testing={testing} onStartStop={handleStartStop}
+canReplace={canReplace} onReplace={handleReplace}
+startDate={startDate} onStartDateChange={setStartDate}
+endDate={endDate} onEndDateChange={setEndDate}
+bottomPosition={bottomPosition} onBottomPositionChange={setBottomPosition}
+hs300ConfirmDays={hs300ConfirmDays} onHs300ConfirmDaysChange={setHs300ConfirmDays}
+bufferEnabled={bufferEnabled} onBufferEnabledChange={setBufferEnabled}
+maPeriod={maPeriod} onMaPeriodChange={setMaPeriod}
+signalOrder={signalOrder} onSignalOrderChange={setSignalOrder}/>
+</div>
+<div className="col-span-9">
+<CumulativeReturnChart baselineData={baselineData} testData={testData} testing={testing}/>
+<AccuracyChart baselineData={baselineData} testData={testData} testing={testing}/>
+</div>
+</div>
+<StrategyLog logs={logs} onAddNote={handleAddNote}/>
+{backtestOpen&&<BacktestPanel params={btParams} onParamChange={setBtParams} running={btRunning} progress={btProgress} report={btReport} onStart={startBacktest}/>}
+</div>
+<ConfirmModal open={showConfirm} onConfirm={handleConfirmReplace} onCancel={()=>setShowConfirm(false)} strategyName={strategyName||'V9.09'}/>
+</div>
+);
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

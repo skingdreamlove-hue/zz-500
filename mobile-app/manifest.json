@@ -1,0 +1,17 @@
+{
+  "name": "中证500量化信号",
+  "short_name": "ZZ500信号",
+  "description": "中证500量化策略信号查看工具",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#0a0e17",
+  "theme_color": "#0a0e17",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a0e17'/><text x='50' y='65' font-size='48' text-anchor='middle' fill='%2322d3ee'>5</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

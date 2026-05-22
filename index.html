@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中证500量化工具</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --bg-gradient: linear-gradient(135deg, #1F2937 0%, #111827 100%);
+            --card-bg: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-dim: #8b949e;
+            --text-placeholder: #484f58;
+            --red: #f85149;
+            --green: #3fb950;
+            --orange: #d29922;
+            --blue: #2563EB;
+            --blue-light: rgba(37,99,235,0.15);
+            --accent-gradient: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
+            --shadow-card: 0 4px 12px rgba(0,0,0,0.15);
+            --shadow-dark-card: 0 10px 25px rgba(0,0,0,0.25);
+            --shadow-btn: 0 4px 12px rgba(37,99,235,0.3);
+            --radius-md: 8px;
+            --radius-lg: 10px;
+            --radius-xl: 12px;
+            --radius-2xl: 14px;
+            --radius-3xl: 16px;
+            --radius-full: 9999px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            min-height: 100vh;
+            -webkit-app-region: no-drag;
+            user-select: none;
+        }
+
+        .title-bar {
+            -webkit-app-region: drag;
+            background: var(--bg-gradient);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .title-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .title-bar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+        .btn-review {
+            -webkit-app-region: no-drag;
+            background: var(--accent-gradient);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-lg);
+            padding: 7px 16px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-btn);
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-review:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(37,99,235,0.4);
+        }
+        .btn-refresh {
+            -webkit-app-region: no-drag;
+            background: transparent;
+            color: var(--text-dim);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn-refresh:hover {
+            color: var(--text);
+            border-color: var(--text-dim);
+            background: rgba(139,148,158,0.1);
+        }
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px 24px;
+        }
+
+        /* 信号卡片 */
+        .signal-card {
+            background: var(--bg-gradient);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius-3xl);
+            padding: 28px;
+            text-align: center;
+            box-shadow: var(--shadow-dark-card);
+            margin-bottom: 16px;
+        }
+        .status-tag {
+            display: inline-block;
+            padding: 5px 16px;
+            border-radius: var(--radius-full);
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+        .signal-text {
+            font-size: 3.2rem;
+            font-weight: 800;
+            margin: 14px 0 8px;
+            letter-spacing: 2px;
+        }
+        .signal-detail {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+        }
+
+        /* 点位信息行 */
+        .info-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .info-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-3xl);
+            padding: 20px;
+            text-align: center;
+            box-shadow: var(--shadow-card);
+        }
+        .info-label {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .info-value {
+            font-size: 2rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+        .info-hint {
+            font-size: 0.72rem;
+            color: var(--text-placeholder);
+            margin-top: 6px;
+        }
+
+        /* 趋势图 */
+        .chart-card {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-3xl);
+            padding: 20px;
+            box-shadow: var(--shadow-card);
+            margin-bottom: 16px;
+            position: relative;
+        }
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .chart-title {
+            font-size: 0.9rem;
+            color: #374151;
+            font-weight: 600;
+        }
+        .chart-legend {
+            display: flex;
+            gap: 16px;
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .legend-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+        }
+        #trendChart {
+            width: 100%;
+            height: 350px;
+            display: block;
+        }
+
+        .footer-bar {
+            text-align: center;
+            padding: 16px 0;
+            font-size: 0.75rem;
+            color: var(--text-placeholder);
+            line-height: 1.6;
+        }
+
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(13,17,23,0.95);
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            z-index: 9999;
+        }
+        .spinner {
+            border: 4px solid #21262d;
+            border-top: 4px solid var(--blue);
+            border-radius: 50%;
+            width: 40px; height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-text { margin-top: 16px; color: var(--text-dim); font-size: 0.9rem; }
+
+        @media (max-width: 768px) {
+            .info-row { grid-template-columns: 1fr; }
+            #trendChart { height: 250px; }
+        }
+
+        .tab-btn {
+            -webkit-app-region: no-drag;
+            background: transparent;
+            color: var(--text-dim);
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 10px 24px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: -2px;
+        }
+        .tab-btn:hover { color: var(--text); }
+        .tab-btn.active {
+            color: var(--blue);
+            border-bottom-color: var(--blue);
+        }
+
+        .kpi-card {
+            background: linear-gradient(145deg, #161b22 0%, #0d1117 100%);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px 20px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        .kpi-card:hover { border-color: #334155; }
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            border-radius: 12px 12px 0 0;
+        }
+        .kpi-card.green::before { background: linear-gradient(90deg, #22c55e, #16a34a); }
+        .kpi-card.red::before { background: linear-gradient(90deg, #ef4444, #dc2626); }
+        .kpi-card.blue::before { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+        .kpi-card.amber::before { background: linear-gradient(90deg, #f59e0b, #d97706); }
+        .kpi-card.purple::before { background: linear-gradient(90deg, #a855f7, #9333ea); }
+        .kpi-card.cyan::before { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+
+        .dash-panel {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .dash-panel-header {
+            padding: 12px 18px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .dash-panel-body { padding: 14px 18px; }
+
+        .judge-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px; height: 24px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .judge-badge.pass { background: #22c55e20; color: #22c55e; }
+        .judge-badge.fail { background: #ef444420; color: #ef4444; }
+        .judge-badge.neutral { background: #f59e0b20; color: #f59e0b; }
+        .judge-badge.pending { background: #47556920; color: #94a3b8; }
+
+        .dash-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+        .dash-table th {
+            text-align: left; padding: 8px 10px;
+            color: var(--text-dim); font-weight: 600;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.72rem;
+            cursor: pointer; user-select: none; white-space: nowrap;
+        }
+        .dash-table th:hover { color: #60a5fa; }
+        .dash-table td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #21262d;
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+        .dash-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+        @keyframes pulse-pending { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .pulse-pending { animation: pulse-pending 1.5s ease-in-out infinite; }
+    </style>
+    <script src="vendor/papaparse.min.js" onerror="(function(s){s.src='https://unpkg.com/papaparse@5.4.1/papaparse.min.js';s.onerror=null})(this)"></script>
+    <script src="strategy-common.js"></script>
+</head>
+<body>
+
+<div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <p class="loading-text" id="loadingText">正在加载数据...</p>
+</div>
+
+<div class="title-bar">
+    <div class="title-bar-left">
+        <span>中证500量化工具</span>
+        <div class="status-dot" id="statusDot"></div>
+    </div>
+    <div class="title-bar-right">
+        <a href="review.html" class="btn-review" id="btnReview">复盘与AI</a>
+        <a href="strategy-debug.html" class="btn-review" id="btnDebug" style="background:linear-gradient(135deg,#a855f7 0%,#9333ea 100%);box-shadow:0 4px 12px rgba(168,85,247,0.3);">策略调试</a>
+        <button class="btn-refresh" id="btnRefresh" onclick="manualRefresh()">↻ 更新数据</button>
+        <span id="lastUpdateTime">--</span>
+    </div>
+</div>
+
+<div class="main-container" id="mainContent" style="display:none;">
+
+    <!-- 标签页切换 -->
+    <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border);">
+        <button id="tabSignal" class="tab-btn active" onclick="switchTab('signal')">实时信号</button>
+        <button id="tabDashboard" class="tab-btn" onclick="switchTab('dashboard')">实盘复盘</button>
+    </div>
+
+    <!-- 实时信号标签页 -->
+    <div id="signalSection">
+    <div class="signal-card" id="signalCard">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+            <span class="status-tag" id="statusTag">--</span>
+            <span style="font-size:0.85rem;color:var(--text-dim);" id="signalDate">--</span>
+        </div>
+        <div class="signal-text" id="signalText">观望</div>
+        <div class="signal-detail" id="signalDetail"></div>
+    </div>
+
+    <!-- 点位信息 -->
+    <div class="info-row" style="grid-template-columns:repeat(4,1fr);">
+        <div class="info-card">
+            <div class="info-label">当前点位</div>
+            <div class="info-value" id="currentPrice">--</div>
+            <div class="info-hint">中证500</div>
+        </div>
+        <div class="info-card">
+            <div class="info-label">卖出点位</div>
+            <div class="info-value" id="ma20Price" style="color:var(--green);">--</div>
+            <div class="info-hint">跌破MA20清仓</div>
+        </div>
+        <div class="info-card">
+            <div class="info-label">买入点位</div>
+            <div class="info-value" id="buyLinePrice" style="color:var(--red);">--</div>
+            <div class="info-hint">突破MA20×1.01满仓</div>
+        </div>
+        <div class="info-card">
+            <div class="info-label">宏观因子</div>
+            <div class="info-value" id="macroFactor" style="font-size:1.4rem;">--</div>
+            <div class="info-hint" id="macroHint">沪深300</div>
+        </div>
+    </div>
+
+    <!-- 辅助因子 -->
+    <div class="info-row" style="grid-template-columns:repeat(2,1fr);">
+        <div class="info-card">
+            <div class="info-label">爆量状态</div>
+            <div class="info-value" id="volSurgeStatus" style="font-size:1.4rem;">--</div>
+            <div class="info-hint">MA5/MA60 > 1.5x</div>
+        </div>
+        <div class="info-card">
+            <div class="info-label">目标仓位</div>
+            <div class="info-value" id="targetPosition" style="font-size:1.4rem;">--</div>
+            <div class="info-hint" id="positionHint">--</div>
+        </div>
+    </div>
+
+    <!-- 趋势图 -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <span class="chart-title">中证500 近10年趋势</span>
+            <div class="chart-legend">
+                <div class="legend-item"><div class="legend-dot" style="background:var(--blue);"></div>收盘价</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--orange);"></div>MA20</div>
+            </div>
+        </div>
+        <canvas id="trendChart"></canvas>
+        <div id="chartTooltip" style="display:none;position:absolute;background:#1c2333;border:1px solid #30363d;border-radius:8px;padding:10px 14px;font-size:12px;color:#e6edf3;pointer-events:none;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.3);line-height:1.8;"></div>
+    </div>
+
+    <div class="footer-bar">
+        6因子决策树：跌破MA20清仓 → 涨破5%满仓 → 量价共振满仓 → 大盘撑腰满仓 → 逆市试错10% → 无效突破滤除
+    </div>
+    </div><!-- end signalSection -->
+
+    <!-- 实盘复盘区域 -->
+    <div id="dashboardSection" style="display:none;margin-top:16px;">
+        <div id="dashboardRoot"></div>
+    </div>
+</div>
+
+<script>
+    // 策略核心函数 - 统一使用 StrategyCommon
+    function getSignalFromState() {
+        const { closePrice, ma20, hs300Close, hs300MA20, volSurge } = state;
+        if (!closePrice || !ma20) return null;
+        return StrategyCommon.getSignal({
+            close: closePrice.toString(),
+            zz500_MA20: ma20.toString(),
+            is_hs300_strong: (hs300Close > hs300MA20) ? 'True' : 'False',
+            is_volume_surge: volSurge ? 'True' : 'False'
+        });
+    }
+
+    const SIGNAL_UI = {
+        '清仓-跌破MA20':      { detail: '跌破生命线，无条件清仓防守',     color: 'var(--green)',      bg: 'rgba(63,185,80,0.12)' },
+        '满仓-涨破5%':        { detail: '涨破MA20达5%，绝对逼空满仓',    color: 'var(--red)',        bg: 'rgba(248,81,73,0.12)' },
+        '满仓-量价共振':      { detail: '大盘强+爆量，量价齐升共振',      color: 'var(--red)',        bg: 'rgba(248,81,73,0.12)' },
+        '满仓-大盘撑腰':      { detail: '大盘强+突破1%，大盘撑腰满仓',    color: 'var(--red)',        bg: 'rgba(248,81,73,0.12)' },
+        '底仓-逆市试错':      { detail: '大盘弱+突破1%，逆市微弱试错仅10%底仓', color: 'var(--orange)', bg: 'rgba(210,153,34,0.12)' },
+        '观望-无效突破':      { detail: '站上MA20但涨幅不足1%，无效突破滤除', color: 'var(--text-dim)', bg: 'rgba(139,148,158,0.08)' }
+    };
+
+    let API_BASE = '';
+    let backendReady = false;
+
+    // ========== 数据状态 ==========
+    const state = {
+        closePrice: 0,
+        ma20: 0,
+        ma200: 0,
+        hs300Close: 0,
+        hs300MA20: 0,
+        volSurge: false,
+        prev19Sum: 0,
+        chartData: [],
+        dataStatus: 'non_trading'
+    };
+
+    // ========== 日期 ==========
+    function updateLastUpdateTime() {
+        const now = new Date();
+        const y = now.getFullYear();
+        const mo = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        const h = String(now.getHours()).padStart(2, '0');
+        const mi = String(now.getMinutes()).padStart(2, '0');
+        const s = String(now.getSeconds()).padStart(2, '0');
+        let statusTag = '';
+        if (state.dataStatus === 'intraday') {
+            statusTag = ' [盘中]';
+        } else if (state.dataStatus === 'closed') {
+            statusTag = ' [已收盘]';
+        }
+        document.getElementById('lastUpdateTime').textContent = `更新: ${y}年${mo}月${d}日 ${h}:${mi}:${s}${statusTag}`;
+    }
+
+    // ========== 信号计算 ==========
+    function updateSignal() {
+        const signal = getSignalFromState();
+        if (!signal) return;
+
+        const ui = SIGNAL_UI[signal.name] || SIGNAL_UI['观望-无效突破'];
+        const signalColor = ui.color;
+
+        const signalCard = document.getElementById('signalCard');
+        signalCard.style.background = ui.bg;
+        signalCard.style.borderColor = signalColor + '44';
+
+        const statusTag = document.getElementById('statusTag');
+        statusTag.textContent = '多因子策略';
+        statusTag.style.background = signalColor + '33';
+        statusTag.style.color = signalColor;
+
+        document.getElementById('signalDate').textContent = document.getElementById('lastUpdateTime').textContent;
+
+        const signalTextEl = document.getElementById('signalText');
+        signalTextEl.textContent = signal.name;
+        signalTextEl.style.color = signalColor;
+
+        document.getElementById('signalDetail').textContent = ui.detail;
+    }
+
+    // ========== 点位显示 ==========
+    function updatePriceDisplay() {
+        const { closePrice, ma20, hs300Close, hs300MA20, volSurge, prev19Sum } = state;
+        if (!closePrice) return;
+
+        const dynamicMA20 = prev19Sum > 0 ? (prev19Sum + closePrice) / 20 : ma20;
+        const sellLine = dynamicMA20;
+        const buyLine = dynamicMA20 * 1.01;
+
+        document.getElementById('currentPrice').textContent = closePrice.toFixed(2);
+        document.getElementById('ma20Price').textContent = sellLine.toFixed(2);
+        document.getElementById('buyLinePrice').textContent = buyLine.toFixed(2);
+
+        const macroStrong = hs300Close > hs300MA20;
+        const macroEl = document.getElementById('macroFactor');
+        const macroHintEl = document.getElementById('macroHint');
+        if (hs300Close) {
+            macroEl.textContent = macroStrong ? '大盘强' : '大盘弱';
+            macroEl.style.color = macroStrong ? 'var(--red)' : 'var(--green)';
+            macroHintEl.textContent = '沪深300: ' + hs300Close.toFixed(2);
+        }
+
+        const volEl = document.getElementById('volSurgeStatus');
+        if (volSurge) {
+            volEl.textContent = '已爆量';
+            volEl.style.color = 'var(--red)';
+        } else {
+            volEl.textContent = '正常';
+            volEl.style.color = 'var(--text-dim)';
+        }
+
+        const signal = StrategyCommon.getSignal({
+            close: closePrice.toString(),
+            zz500_MA20: dynamicMA20.toString(),
+            is_hs300_strong: (hs300Close > hs300MA20) ? 'True' : 'False',
+            is_volume_surge: volSurge ? 'True' : 'False'
+        });
+        const targetPosPct = signal ? signal.position : 0;
+        const posEl = document.getElementById('targetPosition');
+        const posHintEl = document.getElementById('positionHint');
+        if (targetPosPct >= 100) {
+            posEl.textContent = '100%';
+            posEl.style.color = 'var(--red)';
+            posHintEl.textContent = '满仓';
+        } else if (targetPosPct > 0) {
+            posEl.textContent = targetPosPct + '%';
+            posEl.style.color = 'var(--orange)';
+            posHintEl.textContent = '底仓';
+        } else {
+            posEl.textContent = '0%';
+            posEl.style.color = 'var(--green)';
+            posHintEl.textContent = '空仓';
+        }
+    }
+
+    // ========== 趋势图绘制 ==========
+    function drawChart() {
+        const canvas = document.getElementById('trendChart');
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+
+        canvas.width = canvas.clientWidth * dpr;
+        canvas.height = canvas.clientHeight * dpr;
+        ctx.scale(dpr, dpr);
+
+        const W = canvas.clientWidth;
+        const H = canvas.clientHeight;
+        const data = state.chartData;
+
+        if (!data || data.length < 2) {
+            ctx.fillStyle = '#484f58';
+            ctx.font = '14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('暂无数据', W / 2, H / 2);
+            return;
+        }
+
+        const pad = { top: 20, right: 60, bottom: 30, left: 10 };
+        const cw = W - pad.left - pad.right;
+        const ch = H - pad.top - pad.bottom;
+
+        // 价格范围
+        let minP = Infinity, maxP = -Infinity;
+        for (const d of data) {
+            if (d.close < minP) minP = d.close;
+            if (d.ma20 !== null) {
+                if (d.ma20 < minP) minP = d.ma20;
+                if (d.ma20 > maxP) maxP = d.ma20;
+                if (d.ma20 * 1.02 > maxP) maxP = d.ma20 * 1.02;
+            }
+            if (d.close > maxP) maxP = d.close;
+        }
+        const range = maxP - minP || 1;
+        minP -= range * 0.05;
+        maxP += range * 0.05;
+        const priceRange = maxP - minP;
+
+        function xPos(i) { return pad.left + (i / (data.length - 1)) * cw; }
+        function yPos(v) { return pad.top + (1 - (v - minP) / priceRange) * ch; }
+
+        // 清空
+        ctx.clearRect(0, 0, W, H);
+
+        // 网格线
+        ctx.strokeStyle = '#e5e7eb';
+        ctx.lineWidth = 0.5;
+        const gridLines = 5;
+        for (let i = 0; i <= gridLines; i++) {
+            const y = pad.top + (i / gridLines) * ch;
+            ctx.beginPath();
+            ctx.moveTo(pad.left, y);
+            ctx.lineTo(W - pad.right, y);
+            ctx.stroke();
+
+            const price = maxP - (i / gridLines) * priceRange;
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '11px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(price.toFixed(0), W - pad.right + 8, y + 4);
+        }
+
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        const yearSet = new Set();
+        for (let i = 0; i < data.length; i++) {
+            const year = data[i].date.substring(0, 4);
+            if (!yearSet.has(year)) {
+                yearSet.add(year);
+                ctx.fillText(year, xPos(i), H - 8);
+            }
+        }
+
+        // MA20 线
+        ctx.strokeStyle = '#d29922';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        let started = false;
+        for (let i = 0; i < data.length; i++) {
+            if (!data[i].ma20) continue;
+            const x = xPos(i);
+            const y = yPos(data[i].ma20);
+            if (!started) { ctx.moveTo(x, y); started = true; }
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // 收盘价线
+        ctx.strokeStyle = '#2563EB';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i < data.length; i++) {
+            const x = xPos(i);
+            const y = yPos(data[i].close);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // 当前价格标记点
+        if (data.length > 0) {
+            const last = data[data.length - 1];
+            const lx = xPos(data.length - 1);
+            const ly = yPos(last.close);
+            ctx.beginPath();
+            ctx.arc(lx, ly, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#2563EB';
+            ctx.fill();
+        }
+
+        // ========== 鼠标悬停tooltip ==========
+        const tooltip = document.getElementById('chartTooltip');
+        const chartCard = canvas.parentElement;
+
+        canvas.onmousemove = function(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            // 找到最近的数据点索引
+            const ratio = (mx - pad.left) / cw;
+            if (ratio < 0 || ratio > 1) { tooltip.style.display = 'none'; return; }
+            const idx = Math.round(ratio * (data.length - 1));
+            if (idx < 0 || idx >= data.length) { tooltip.style.display = 'none'; return; }
+
+            // 计算鼠标到曲线(收盘价+MA20)的垂直距离
+            const threshold = 30; // 像素阈值
+            let found = false;
+            const d = data[idx];
+
+            // 检查收盘价
+            if (d.close !== undefined) {
+                const closeY = yPos(d.close);
+                if (Math.abs(my - closeY) <= threshold) {
+                    found = true;
+                }
+            }
+
+            // 检查MA20
+            if (d.ma20 !== null && d.ma20 !== undefined) {
+                const ma20Y = yPos(d.ma20);
+                if (Math.abs(my - ma20Y) <= threshold) {
+                    found = true;
+                }
+            }
+
+            if (!found) { tooltip.style.display = 'none'; return; }
+
+            const closeVal = d.close.toFixed(2);
+            const ma20Val = d.ma20 ? d.ma20.toFixed(2) : '--';
+
+            tooltip.innerHTML =
+                `<div style="color:#8b949e;margin-bottom:2px;">${d.date}</div>` +
+                `<div><span style="color:#2563EB;">●</span> 中证500：<b>${closeVal}</b></div>` +
+                `<div><span style="color:#d29922;">●</span> MA20：<b>${ma20Val}</b></div>`;
+            tooltip.style.display = 'block';
+
+            // tooltip位置（基于chart-card定位）
+            const cardRect = chartCard.getBoundingClientRect();
+            let tx = e.clientX - cardRect.left + 16;
+            let ty = e.clientY - cardRect.top - 10;
+            // 防止溢出右边
+            if (tx + 180 > cardRect.width) tx = e.clientX - cardRect.left - 180;
+            tooltip.style.left = tx + 'px';
+            tooltip.style.top = ty + 'px';
+        };
+
+        canvas.onmouseleave = function() {
+            tooltip.style.display = 'none';
+        };
+    }
+
+    // ========== 加载CSV数据绘制趋势图 ==========
+    async function loadChartData() {
+        try {
+            const fs = window.electronAPI && window.electronAPI.readFile;
+            if (fs) {
+                const csvText = await fs('zz500_full_data.csv');
+                parseCSV(csvText);
+            } else {
+                // 非Electron环境，fetch加载
+                const resp = await fetch('./zz500_full_data.csv');
+                const csvText = await resp.text();
+                parseCSV(csvText);
+            }
+        } catch (e) {
+            console.error('加载趋势图数据失败:', e);
+        }
+    }
+
+    function parseCSV(csvText) {
+        // 去除BOM
+        if (csvText.charCodeAt(0) === 0xFEFF) {
+            csvText = csvText.substring(1);
+        }
+        const lines = csvText.trim().split('\n');
+        if (lines.length < 2) return;
+
+        // 找到近10年的数据
+        const tenYearsAgo = new Date();
+        tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+
+        const result = [];
+        for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',');
+            if (cols.length < 5) continue;
+            const dateStr = cols[0].trim();
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) continue;
+
+            const close = parseFloat(cols[4]); // close列
+            if (isNaN(close)) continue;
+
+            // 计算MA20
+            if (result.length >= 19) {
+                let sum = 0;
+                for (let j = result.length - 19; j <= result.length - 1; j++) {
+                    sum += result[j].close;
+                }
+                sum += close;
+                const ma20 = sum / 20;
+                result.push({ date: dateStr, close, ma20 });
+            } else {
+                result.push({ date: dateStr, close, ma20: null });
+            }
+        }
+
+        // 截取近10年
+        const cutoff = tenYearsAgo.toISOString().substring(0, 10);
+        const startIdx = result.findIndex(d => d.date >= cutoff);
+        state.chartData = startIdx >= 0 ? result.slice(startIdx) : result;
+
+        drawChart();
+    }
+
+    // ========== 从后端获取数据 ==========
+    function refreshData() {
+        if (!backendReady) return;
+
+        fetch(API_BASE + '/strategy_b')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) return;
+                state.dataStatus = data.data_status || 'non_trading';
+                const kline = data.kline;
+                if (kline && kline.success) {
+                    state.closePrice = kline.current_price;
+                    state.ma20 = kline.ma20;
+                    state.ma200 = kline.ma200;
+                    state.volSurge = kline.vol_surge || false;
+                    state.prev19Sum = kline.prev_19_sum || 0;
+                }
+                const hs300 = data.hs300;
+                if (hs300 && hs300.success) {
+                    state.hs300Close = hs300.current_price;
+                    state.hs300MA20 = hs300.ma20;
+                }
+                if (state.closePrice && state.ma20) {
+                    updateSignal();
+                    updatePriceDisplay();
+                    updateLastUpdateTime();
+                }
+            })
+            .catch(err => {
+                console.error('获取数据失败:', err);
+            });
+    }
+
+    // ========== 手动刷新 ==========
+    function manualRefresh() {
+        document.getElementById('lastUpdateTime').textContent = '正在刷新...';
+        Promise.all([
+            loadChartData(),
+            fetch(API_BASE + '/strategy_b').then(r => r.json()).then(data => {
+                if (!data.success) return;
+                state.dataStatus = data.data_status || 'non_trading';
+                const kline = data.kline;
+                if (kline && kline.success) {
+                    state.closePrice = kline.current_price;
+                    state.ma20 = kline.ma20;
+                    state.ma200 = kline.ma200;
+                    state.volSurge = kline.vol_surge || false;
+                    state.prev19Sum = kline.prev_19_sum || 0;
+                }
+                const hs300 = data.hs300;
+                if (hs300 && hs300.success) {
+                    state.hs300Close = hs300.current_price;
+                    state.hs300MA20 = hs300.ma20;
+                }
+                if (state.closePrice && state.ma20) {
+                    updateSignal();
+                    updatePriceDisplay();
+                    updateLastUpdateTime();
+                }
+            }),
+            fetch(API_BASE + '/refresh-csv').then(r => r.json()).then(data => {
+                if (data.success && dashboardInitialized) {
+                    loadDashboardData();
+                }
+            }).catch(() => {})
+        ]).then(() => {
+            drawChart();
+        }).catch(err => {
+            console.error('刷新失败:', err);
+            updateLastUpdateTime();
+        });
+    }
+
+    // ========== 初始化 ==========
+    function showPage() {
+        document.getElementById('loadingOverlay').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+    }
+
+    async function tryConnectBackend() {
+        const ports = [5001, 5002, 5003, 5004, 5005];
+        for (const p of ports) {
+            try {
+                const r = await fetch('http://localhost:' + p + '/api/health', { signal: AbortSignal.timeout(3000) });
+                if (r.ok) {
+                    API_BASE = 'http://localhost:' + p + '/api';
+                    document.getElementById('btnReview').href = 'http://localhost:' + p + '/review.html';
+                    document.getElementById('btnDebug').href = 'http://localhost:' + p + '/strategy-debug.html';
+                    backendReady = true;
+                    refreshData();
+                    return;
+                }
+            } catch (e) { /* next port */ }
+        }
+        backendReady = false;
+    }
+
+    async function initApp() {
+        updateLastUpdateTime();
+        showPage();
+
+        // 加载趋势图数据
+        await loadChartData();
+
+        // 手动刷新按钮
+        document.getElementById('btnRefresh').addEventListener('click', manualRefresh);
+
+        // 尝试连接后端
+        try {
+            if (window.electronAPI && window.electronAPI.startBackend) {
+                window.electronAPI.startBackend().then(result => {
+                    if (result && result.success && result.port) {
+                        API_BASE = 'http://localhost:' + result.port + '/api';
+                        document.getElementById('btnReview').href = 'http://localhost:' + result.port + '/review.html';
+                        document.getElementById('btnDebug').href = 'http://localhost:' + result.port + '/strategy-debug.html';
+                        backendReady = true;
+                        refreshData();
+                    } else {
+                        tryConnectBackend();
+                    }
+                }).catch(() => {
+                    tryConnectBackend();
+                });
+            } else {
+                tryConnectBackend();
+            }
+        } catch (e) {
+            console.error('初始化失败:', e);
+            tryConnectBackend();
+        }
+
+        // 窗口大小变化时重绘图表
+        window.addEventListener('resize', drawChart);
+    }
+
+    // ========== 标签页切换 ==========
+    let dashboardInitialized = false;
+
+    function switchTab(tab) {
+        var signalSection = document.getElementById('signalSection');
+        var dashboardSection = document.getElementById('dashboardSection');
+        var tabSignal = document.getElementById('tabSignal');
+        var tabDashboard = document.getElementById('tabDashboard');
+
+        if (tab === 'signal') {
+            signalSection.style.display = 'block';
+            dashboardSection.style.display = 'none';
+            tabSignal.classList.add('active');
+            tabDashboard.classList.remove('active');
+        } else {
+            signalSection.style.display = 'none';
+            dashboardSection.style.display = 'block';
+            tabSignal.classList.remove('active');
+            tabDashboard.classList.add('active');
+            if (!dashboardInitialized) {
+                dashboardInitialized = true;
+                initDashboard();
+            }
+        }
+    }
+
+    // ========== 实盘复盘 ==========
+    function initDashboard() {
+        loadDashboardData();
+    }
+
+    function loadDashboardData() {
+        (async function () {
+            try {
+                if (typeof Papa === 'undefined') {
+                    document.getElementById('dashboardRoot').innerHTML =
+                        '<div style="text-align:center;padding:40px;color:#f59e0b;"><div style="font-size:2rem;margin-bottom:12px;">⚠</div><p>离线模式：实盘复盘需要 PapaParse 库</p><p style="font-size:0.85rem;color:#8b949e;margin-top:8px;">请连接网络后刷新页面，或手动加载 vendor/papaparse.min.js</p></div>';
+                    return;
+                }
+                var csvText;
+                if (window.electronAPI && window.electronAPI.readFile) {
+                    csvText = await window.electronAPI.readFile('zz500_factors.csv');
+                } else {
+                    var resp = await fetch('./zz500_factors.csv');
+                    csvText = await resp.text();
+                }
+                var parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+                var data = StrategyCommon.processRealData(parsed.data);
+                var kpi = StrategyCommon.calcKPI(data);
+                renderDashboard(data, kpi);
+            } catch (e) {
+                document.getElementById('dashboardRoot').innerHTML =
+                    '<div style="text-align:center;padding:40px;color:#f85149;"><div style="font-size:2rem;margin-bottom:12px;">✕</div><p>加载数据失败: ' + e.message + '</p></div>';
+            }
+        })();
+    }
+
+    function renderDashboard(data, kpi) {
+        var root = document.getElementById('dashboardRoot');
+        var html = '';
+
+        // KPI 卡片
+        html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">';
+        html += kpiCard('加权准确率', StrategyCommon.fmtPct(kpi.accWeighted), kpi.accWeighted >= 55 ? 'green' : kpi.accWeighted >= 45 ? 'amber' : 'red', kpi.accWeightedTrend >= 0 ? '↑' : '↓', kpi.accWeightedTrend);
+        html += kpiCard('年化收益', StrategyCommon.fmtPct(kpi.annReturn), kpi.annReturn >= 0 ? 'green' : 'red', kpi.annReturnTrend >= 0 ? '↑' : '↓', kpi.annReturnTrend);
+        html += kpiCard('5日准确率', StrategyCommon.fmtPct(kpi.acc5), kpi.acc5 >= 55 ? 'green' : kpi.acc5 >= 45 ? 'amber' : 'red');
+        html += kpiCard('10日准确率', StrategyCommon.fmtPct(kpi.acc10), kpi.acc10 >= 55 ? 'green' : kpi.acc10 >= 45 ? 'amber' : 'red');
+        html += kpiCard('20日准确率', StrategyCommon.fmtPct(kpi.acc20), kpi.acc20 >= 55 ? 'green' : kpi.acc20 >= 45 ? 'amber' : 'red');
+        html += kpiCard('总交易日', kpi.totalDays + '天', 'blue');
+        html += '</div>';
+
+        // 净值曲线 + Alpha 曲线
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">';
+        html += '<div class="dash-panel"><div class="dash-panel-header"><span style="font-size:0.85rem;font-weight:600;color:#e6edf3;">净值曲线</span></div>';
+        html += '<div class="dash-panel-body"><canvas id="navChart" height="220"></canvas></div></div>';
+        html += '<div class="dash-panel"><div class="dash-panel-header"><span style="font-size:0.85rem;font-weight:600;color:#e6edf3;">Alpha (策略-基准)</span></div>';
+        html += '<div class="dash-panel-body"><canvas id="alphaChart" height="220"></canvas></div></div>';
+        html += '</div>';
+
+        // 信号分析表
+        html += '<div class="dash-panel" style="margin-bottom:16px;">';
+        html += '<div class="dash-panel-header"><span style="font-size:0.85rem;font-weight:600;color:#e6edf3;">信号分析</span></div>';
+        html += '<div class="dash-panel-body" style="overflow-x:auto;">';
+        html += renderSignalTable(kpi.signalStats);
+        html += '</div></div>';
+
+        // 每日记录表
+        html += '<div class="dash-panel">';
+        html += '<div class="dash-panel-header"><span style="font-size:0.85rem;font-weight:600;color:#e6edf3;">每日记录（最近30条）</span></div>';
+        html += '<div class="dash-panel-body" style="overflow-x:auto;">';
+        html += renderDailyTable(data.slice(-30).reverse());
+        html += '</div></div>';
+
+        root.innerHTML = html;
+
+        // 绘制图表
+        drawNavChart(data);
+        drawAlphaChart(data);
+    }
+
+    function kpiCard(label, value, color, trendIcon, trendVal) {
+        var trendHtml = '';
+        if (trendIcon && trendVal !== undefined) {
+            var tc = trendVal >= 0 ? '#22c55e' : '#ef4444';
+            trendHtml = '<div style="font-size:0.72rem;color:' + tc + ';margin-top:4px;">' + trendIcon + ' ' + StrategyCommon.fmtPct(Math.abs(trendVal), 1) + '</div>';
+        }
+        return '<div class="kpi-card ' + color + '"><div style="font-size:0.72rem;color:#8b949e;margin-bottom:4px;font-weight:500;">' + label + '</div><div style="font-size:1.5rem;font-weight:800;color:#e6edf3;font-variant-numeric:tabular-nums;">' + value + '</div>' + trendHtml + '</div>';
+    }
+
+    function renderSignalTable(stats) {
+        var html = '<table class="dash-table"><thead><tr>';
+        html += '<th>信号</th><th>触发次数</th><th>占比</th><th>平均持续</th><th>加权准确率</th>';
+        html += '</tr></thead><tbody>';
+        stats.forEach(function (s) {
+            var waColor = s.avgWa === null ? '#94a3b8' : s.avgWa >= 55 ? '#22c55e' : s.avgWa >= 45 ? '#f59e0b' : '#ef4444';
+            html += '<tr>';
+            html += '<td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + s.color + ';margin-right:6px;vertical-align:middle;"></span>' + s.name + '</td>';
+            html += '<td>' + s.triggers + '</td>';
+            html += '<td>' + s.pct.toFixed(1) + '%</td>';
+            html += '<td>' + s.avgDur.toFixed(1) + '天</td>';
+            html += '<td style="color:' + waColor + ';font-weight:600;">' + (s.avgWa !== null ? s.avgWa.toFixed(1) + '%' : '--') + '</td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        return html;
+    }
+
+    function renderDailyTable(rows) {
+        var html = '<table class="dash-table"><thead><tr>';
+        html += '<th>日期</th><th>收盘</th><th>信号</th><th>仓位</th><th>策略净值</th><th>5日前瞻</th><th>10日前瞻</th><th>20日前瞻</th>';
+        html += '</tr></thead><tbody>';
+        rows.forEach(function (r) {
+            html += '<tr>';
+            html += '<td>' + r.date + '</td>';
+            html += '<td>' + parseFloat(r.close).toFixed(2) + '</td>';
+            html += '<td><span style="color:' + r.signal.color + ';font-weight:600;">' + r.signal.name + '</span></td>';
+            html += '<td>' + (r.signal.position) + '%</td>';
+            html += '<td>' + r.nav.toFixed(4) + '</td>';
+            html += '<td>' + judgeCell(r.j5, r.fwd5) + '</td>';
+            html += '<td>' + judgeCell(r.j10, r.fwd10) + '</td>';
+            html += '<td>' + judgeCell(r.j20, r.fwd20) + '</td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        return html;
+    }
+
+    function judgeCell(j, fwd) {
+        if (j === 'pending') return '<span class="judge-badge pending pulse-pending">⏳</span>';
+        var label = StrategyCommon.judgeLabel(j);
+        var cls = j === 'pass' ? 'pass' : j === 'fail' ? 'fail' : 'neutral';
+        var fwdStr = fwd !== null ? (fwd >= 0 ? '+' : '') + fwd.toFixed(2) + '%' : '';
+        return '<span class="judge-badge ' + cls + '">' + label + '</span> <span style="font-size:0.68rem;color:#8b949e;">' + fwdStr + '</span>';
+    }
+
+    function drawNavChart(data) {
+        var canvas = document.getElementById('navChart');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var dpr = window.devicePixelRatio || 1;
+        var rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = 220 * dpr;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = '220px';
+        ctx.scale(dpr, dpr);
+        var w = rect.width, h = 220;
+        var pad = { top: 20, right: 60, bottom: 30, left: 10 };
+        var cw = w - pad.left - pad.right, ch = h - pad.top - pad.bottom;
+
+        var navVals = data.map(function (d) { return d.nav; });
+        var benchVals = data.map(function (d) { return d.benchNav; });
+        var allVals = navVals.concat(benchVals);
+        var minV = Math.min.apply(null, allVals);
+        var maxV = Math.max.apply(null, allVals);
+        var range = maxV - minV || 1;
+
+        function xPos(i) { return pad.left + (i / (data.length - 1)) * cw; }
+        function yPos(v) { return pad.top + (1 - (v - minV) / range) * ch; }
+
+        // Grid
+        ctx.strokeStyle = '#21262d';
+        ctx.lineWidth = 0.5;
+        for (var i = 0; i <= 4; i++) {
+            var gy = pad.top + (ch / 4) * i;
+            ctx.beginPath(); ctx.moveTo(pad.left, gy); ctx.lineTo(w - pad.right, gy); ctx.stroke();
+            var gv = maxV - (range / 4) * i;
+            ctx.fillStyle = '#8b949e'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+            ctx.fillText(gv.toFixed(2), w - 4, gy + 3);
+        }
+
+        // Strategy nav line
+        ctx.beginPath();
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 1.5;
+        for (var i = 0; i < data.length; i++) {
+            var x = xPos(i), y = yPos(navVals[i]);
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Benchmark nav line
+        ctx.beginPath();
+        ctx.strokeStyle = '#6b7280';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        for (var i = 0; i < data.length; i++) {
+            var x = xPos(i), y = yPos(benchVals[i]);
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Legend
+        ctx.fillStyle = '#3b82f6'; ctx.fillRect(pad.left, h - 12, 12, 3);
+        ctx.fillStyle = '#8b949e'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText('策略净值', pad.left + 16, h - 8);
+        ctx.strokeStyle = '#6b7280'; ctx.setLineDash([4, 3]); ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(pad.left + 80, h - 10); ctx.lineTo(pad.left + 92, h - 10); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillText('基准净值', pad.left + 96, h - 8);
+    }
+
+    function drawAlphaChart(data) {
+        var canvas = document.getElementById('alphaChart');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var dpr = window.devicePixelRatio || 1;
+        var rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = 220 * dpr;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = '220px';
+        ctx.scale(dpr, dpr);
+        var w = rect.width, h = 220;
+        var pad = { top: 20, right: 60, bottom: 30, left: 10 };
+        var cw = w - pad.left - pad.right, ch = h - pad.top - pad.bottom;
+
+        var alphaVals = data.map(function (d) { return d.nav - d.benchNav; });
+        var maxAbs = Math.max(Math.abs(Math.min.apply(null, alphaVals)), Math.abs(Math.max.apply(null, alphaVals)), 0.01);
+        var range = maxAbs * 1.2;
+
+        function xPos(i) { return pad.left + (i / (data.length - 1)) * cw; }
+        function yPos(v) { return pad.top + (1 - (v + range) / (2 * range)) * ch; }
+
+        // Zero line
+        var zeroY = yPos(0);
+        ctx.strokeStyle = '#30363d';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(pad.left, zeroY); ctx.lineTo(w - pad.right, zeroY); ctx.stroke();
+
+        // Grid
+        ctx.strokeStyle = '#21262d';
+        ctx.lineWidth = 0.5;
+        for (var i = 0; i <= 4; i++) {
+            var gy = pad.top + (ch / 4) * i;
+            ctx.beginPath(); ctx.moveTo(pad.left, gy); ctx.lineTo(w - pad.right, gy); ctx.stroke();
+            var gv = range - (2 * range / 4) * i;
+            ctx.fillStyle = '#8b949e'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+            ctx.fillText((gv >= 0 ? '+' : '') + gv.toFixed(2), w - 4, gy + 3);
+        }
+
+        // Alpha fill
+        ctx.beginPath();
+        ctx.moveTo(xPos(0), zeroY);
+        for (var i = 0; i < data.length; i++) {
+            ctx.lineTo(xPos(i), yPos(alphaVals[i]));
+        }
+        ctx.lineTo(xPos(data.length - 1), zeroY);
+        ctx.closePath();
+        var grad = ctx.createLinearGradient(0, pad.top, 0, h - pad.bottom);
+        grad.addColorStop(0, 'rgba(59,130,246,0.15)');
+        grad.addColorStop(1, 'rgba(59,130,246,0.02)');
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Alpha line
+        ctx.beginPath();
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 1.5;
+        for (var i = 0; i < data.length; i++) {
+            var x = xPos(i), y = yPos(alphaVals[i]);
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        ctx.fillStyle = '#8b949e'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText('Alpha = 策略净值 - 基准净值', pad.left, h - 8);
+    }
+
+    document.addEventListener('DOMContentLoaded', initApp);
+</script>
+</body>
+</html>

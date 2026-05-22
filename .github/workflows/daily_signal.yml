@@ -1,0 +1,204 @@
+name: 中证500每日信号推送
+
+on:
+  schedule:
+    # 每个A股交易日的14:45运行 (UTC+8)
+    # 周一到周五: 45 6 * * 1-5 对应北京时间14:45
+    - cron: '45 6 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  generate-signal:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      
+    - name: 设置Python环境
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: 安装依赖
+      run: |
+        pip install yfinance requests
+        
+    - name: 获取数据并生成信号
+      run: |
+        python << 'EOF'
+        import yfinance as yf
+        import pandas as pd
+        import requests
+        from datetime import datetime, timedelta
+        import sys
+
+        # PushPlus配置
+        PUSHPLUS_TOKEN = "1aeb2ecc5b3746f5a88c0b38072223b8"
+        
+        def send_pushplus(title, content):
+            """发送PushPlus推送"""
+            url = "http://www.pushplus.plus/send"
+            data = {
+                "token": PUSHPLUS_TOKEN,
+                "title": title,
+                "content": content,
+                "template": "html"
+            }
+            try:
+                response = requests.post(url, json=data, timeout=10)
+                result = response.json()
+                if result.get("code") == 200:
+                    print(f"推送成功: {result.get('msg')}")
+                    return True
+                else:
+                    print(f"推送失败: {result.get('msg')}")
+                    return False
+            except Exception as e:
+                print(f"推送异常: {e}")
+                return False
+
+        def get_index_data(ticker, name, days=300):
+            """使用yfinance获取指数日线数据"""
+            try:
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=days)
+                df = yf.download(ticker, start=start_date.strftime("%Y-%m-%d"), 
+                                 end=end_date.strftime("%Y-%m-%d"), progress=False)
+                if df is None or df.empty:
+                    print(f"{name}数据为空")
+                    return None
+                # 标准化列名
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.get_level_values(0)
+                df = df.sort_index().reset_index()
+                df.rename(columns={'Close': '收盘', 'Volume': '成交量', 'Date': '日期'}, inplace=True)
+                return df
+            except Exception as e:
+                print(f"获取{name}数据失败: {e}")
+                return None
+
+        def calculate_ma(series, window):
+            """计算移动平均"""
+            return series.rolling(window=window, min_periods=window).mean()
+
+        def calculate_target_position(c500, ma20_500, c300, ma20_300, vol_surge):
+            """多因子共振策略 - 计算目标仓位"""
+            macro_strong = c300 > ma20_300 if ma20_300 else False
+            
+            if c500 < ma20_500:
+                return 0.0, "跌破MA20，清仓防守"
+            if c500 >= ma20_500 * 1.05:
+                return 1.0, "涨破5%，满仓进攻"
+            if macro_strong and vol_surge:
+                return 1.0, "量价共振+大盘撑腰，满仓"
+            if macro_strong and c500 >= ma20_500 * 1.01:
+                return 1.0, "大盘撑腰+有效突破，满仓"
+            if not macro_strong and c500 >= ma20_500 * 1.01:
+                return 0.1, "逆市试错，10%底仓"
+            return 0.0, "无效突破，滤除观望"
+
+        def main():
+            today = datetime.now().strftime("%Y-%m-%d")
+            print(f"运行日期: {today}")
+            
+            # 获取中证500数据 (Yahoo Finance代码: 000905.SS)
+            print("获取中证500数据...")
+            df_500 = get_index_data("000905.SS", "中证500")
+            if df_500 is None or len(df_500) < 60:
+                send_pushplus("数据获取失败", f"日期: {today}<br>无法获取中证500历史数据")
+                sys.exit(1)
+            
+            # 获取沪深300数据 (Yahoo Finance代码: 000300.SS)
+            print("获取沪深300数据...")
+            df_300 = get_index_data("000300.SS", "沪深300")
+            if df_300 is None or len(df_300) < 60:
+                send_pushplus("数据获取失败", f"日期: {today}<br>无法获取沪深300历史数据")
+                sys.exit(1)
+            
+            print(f"中证500数据量: {len(df_500)}条")
+            print(f"沪深300数据量: {len(df_300)}条")
+            
+            # 计算MA20
+            df_500['MA20'] = calculate_ma(df_500['收盘'], 20)
+            df_300['MA20'] = calculate_ma(df_300['收盘'], 20)
+            
+            # 计算成交量MA5和MA60
+            df_500['MA5'] = calculate_ma(df_500['成交量'], 5)
+            df_500['MA60'] = calculate_ma(df_500['成交量'], 60)
+            
+            # 获取最新数据
+            latest_500 = df_500.iloc[-1]
+            latest_300 = df_300.iloc[-1]
+            
+            c500 = float(latest_500['收盘'])
+            ma20_500 = float(latest_500['MA20'])
+            ma5_vol = float(latest_500['MA5']) if pd.notna(latest_500['MA5']) else 0
+            ma60_vol = float(latest_500['MA60']) if pd.notna(latest_500['MA60']) else 0
+            
+            c300 = float(latest_300['收盘'])
+            ma20_300 = float(latest_300['MA20'])
+            
+            print(f"中证500: {c500:.2f}, MA20: {ma20_500:.2f}")
+            print(f"沪深300: {c300:.2f}, MA20: {ma20_300:.2f}")
+            
+            # 判断爆量
+            vol_surge = (ma5_vol > ma60_vol * 1.5) if ma60_vol > 0 else False
+            
+            # 计算目标仓位
+            target_pos, reason = calculate_target_position(c500, ma20_500, c300, ma20_300, vol_surge)
+            
+            # 生成信号标签
+            if target_pos >= 1.0:
+                signal_label = "满仓信号"
+                signal_emoji = "🔴"
+            elif target_pos >= 0.1:
+                signal_label = "底仓信号"
+                signal_emoji = "🟡"
+            else:
+                signal_label = "清仓信号"
+                signal_emoji = "🟢"
+            
+            print(f"信号: {signal_label}, 仓位: {target_pos*100:.0f}%")
+            
+            # 生成简化HTML推送内容
+            html_content = f"""
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <h2 style="color: #333; margin: 0;">{signal_emoji} {signal_label}</h2>
+                    <p style="color: #999; font-size: 12px; margin: 8px 0;">{reason}</p>
+                </div>
+                
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
+                        <span style="color: #666;">当前点位</span>
+                        <span style="font-weight: bold; font-size: 18px; color: #333;">{c500:.2f}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
+                        <span style="color: #666;">卖出点位</span>
+                        <span style="font-weight: bold; color: #3fb950;">{ma20_500:.2f}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                        <span style="color: #666;">买入点位</span>
+                        <span style="font-weight: bold; color: #f85149;">{ma20_500*1.01:.2f}</span>
+                    </div>
+                </div>
+                
+                <p style="text-align: center; color: #999; font-size: 11px; margin: 0;">仅供参考，不构成投资建议</p>
+            </div>
+            """
+            
+            # 发送推送
+            title = f"中证500 | {signal_label} | {today}"
+            success = send_pushplus(title, html_content)
+            
+            if success:
+                print("日报推送完成")
+                sys.exit(0)
+            else:
+                print("推送失败")
+                sys.exit(1)
+
+        if __name__ == "__main__":
+            main()
+        EOF
