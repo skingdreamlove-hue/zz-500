@@ -145,13 +145,15 @@ return result;
 
 function fetchKlines(code,lmt){
 var lmtStr=lmt||600;
-return fetch('https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param='+code+',day,,,'+lmtStr+',qfq')
-.then(function(r){return r.json()})
+var ctrl=new AbortController();
+var tid=setTimeout(function(){ctrl.abort()},12000);
+return fetch('https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param='+code+',day,,,'+lmtStr+',qfq',{signal:ctrl.signal})
+.then(function(r){clearTimeout(tid);return r.json()})
 .then(function(d){
 var obj=d.data[code];
 var k=obj.qfqday||obj.day||[];
 return k.slice(-lmtStr);
-});
+}).catch(function(e){clearTimeout(tid);throw e});
 }
 
 function buildAllData(zz500K,hs300K){
@@ -262,12 +264,9 @@ console.error(e);
 function refreshData(){
 var btn=document.getElementById('btnRefresh');
 btn.disabled=true;btn.textContent='更新中...';
-loadAll().then(function(){
-btn.disabled=false;btn.textContent='↻ 更新数据';
-}).catch(function(){
-btn.disabled=false;btn.textContent='↻ 更新数据';
-});
-setTimeout(function(){if(btn.disabled){btn.disabled=false;btn.textContent='↻ 更新数据';}},15000);
+var done=function(){btn.disabled=false;btn.textContent='↻ 更新数据'};
+loadAll().then(done).catch(done);
+setTimeout(function(){if(btn.disabled)done()},15000);
 }
 
 function renderDashboard(data,kpi){
