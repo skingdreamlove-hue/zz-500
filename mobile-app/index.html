@@ -13,14 +13,7 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0e17;color:#e6edf3;min-height:100vh;-webkit-tap-highlight-color:transparent}
 .header{position:sticky;top:0;z-index:50;background:rgba(10,14,23,0.95);backdrop-filter:blur(12px);border-bottom:1px solid #1e293b;padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
 .header h1{font-size:16px;font-weight:600;background:linear-gradient(135deg,#22d3ee,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.nav{display:flex;gap:8px}
-.nav a{color:#64748b;font-size:13px;text-decoration:none;padding:4px 8px;border-radius:4px;transition:all .2s}
-.nav a.active{color:#22d3ee;background:rgba(34,211,238,0.1)}
-.tabs{display:flex;background:#111827;border-bottom:1px solid #1e293b;padding:0 16px}
-.tab{flex:1;text-align:center;padding:10px 0;font-size:14px;color:#64748b;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s}
-.tab.active{color:#22d3ee;border-bottom-color:#22d3ee}
-.section{padding:16px;display:none}
-.section.active{display:block}
+.section{padding:16px;display:block}
 .card{background:#111827;border:1px solid #1e293b;border-radius:12px;padding:16px;margin-bottom:12px}
 .card-title{font-size:12px;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
 .signal-badge{display:inline-block;padding:6px 16px;border-radius:20px;font-size:15px;font-weight:700}
@@ -34,44 +27,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .price-down{color:#f85149}
 .ma-label{font-size:12px;color:#64748b}
 .ma-value{font-size:14px;color:#8b949e}
-.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.kpi-item{background:#0d1117;border:1px solid #1e293b;border-radius:8px;padding:12px;text-align:center}
-.kpi-value{font-size:20px;font-weight:700}
-.kpi-label{font-size:11px;color:#64748b;margin-top:4px}
-.kpi-green{color:#3fb950}
-.kpi-red{color:#f85149}
-.kpi-yellow{color:#d29922}
 .btn-refresh{width:100%;padding:12px;border:1px solid rgba(34,211,238,0.3);border-radius:10px;background:transparent;color:#22d3ee;font-size:14px;font-weight:500;cursor:pointer;transition:all .2s;margin-top:8px}
 .btn-refresh:active{background:rgba(34,211,238,0.1)}
 .btn-refresh:disabled{opacity:.5;cursor:not-allowed}
 .update-info{text-align:center;font-size:11px;color:#484f58;margin-top:8px}
-.chart-container{position:relative;width:100%;height:200px;margin:8px 0}
-.chart-container canvas{width:100%!important;height:100%!important}
-.data-table{width:100%;font-size:12px;border-collapse:collapse}
-.data-table th{text-align:left;padding:6px 4px;color:#64748b;border-bottom:1px solid #1e293b;font-weight:500}
-.data-table td{padding:6px 4px;border-bottom:1px solid rgba(30,41,59,0.5)}
-.loading{text-align:center;padding:40px;color:#64748b}
-.loading-spinner{display:inline-block;width:24px;height:24px;border:2px solid #1e293b;border-top-color:#22d3ee;border-radius:50%;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.error-msg{text-align:center;padding:20px;color:#f85149}
 </style>
 </head>
 <body>
 <div class="header">
 <h1>中证500量化信号</h1>
-<div class="nav">
-<a href="index.html" class="active">主页</a>
-<a href="strategy-debug.html">策略</a>
-<a href="review.html">复盘</a>
-</div>
 </div>
 
-<div class="tabs">
-<div class="tab active" onclick="switchTab('signal')">实时信号</div>
-<div class="tab" onclick="switchTab('dashboard')">实盘复盘</div>
-</div>
-
-<div id="signalSection" class="section active">
+<div id="signalSection" class="section">
 <div id="signalCard" class="card">
 <div class="card-title">当前信号</div>
 <div id="signalBadge" class="signal-badge signal-watch">加载中...</div>
@@ -107,33 +74,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div class="update-info" id="updateInfo">加载中...</div>
 </div>
 
-<div id="dashboardSection" class="section">
-<div id="dashboardLoading" class="loading"><div class="loading-spinner"></div><p style="margin-top:12px">加载复盘数据...</p></div>
-<div id="dashboardContent" style="display:none">
-<div class="card">
-<div class="card-title">策略准确率</div>
-<div class="kpi-grid" id="kpiGrid"></div>
-</div>
-<div class="card">
-<div class="card-title">净值曲线</div>
-<div class="chart-container"><canvas id="navChart"></canvas></div>
-</div>
-<div class="card">
-<div class="card-title">信号统计</div>
-<div id="signalStats"></div>
-</div>
-<div class="card">
-<div class="card-title">近10日记录</div>
-<div style="overflow-x:auto"><table class="data-table" id="recentTable"></table></div>
-</div>
-</div>
-</div>
-
-<script src="vendor/papaparse.min.js"></script>
-<script src="strategy-common.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script>
-var allData=null;var dashboardData=null;var dashboardKPI=null;
+var allData=null;
 
 function _avg(arr){var s=0;for(var i=0;i<arr.length;i++)s+=arr[i];return s/arr.length;}
 
@@ -240,19 +182,6 @@ var now=new Date();
 document.getElementById('updateInfo').textContent='更新于 '+now.toLocaleString('zh-CN');
 }
 
-function switchTab(tab){
-document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
-document.querySelectorAll('.section').forEach(function(s){s.classList.remove('active')});
-if(tab==='signal'){
-document.querySelector('.tab:first-child').classList.add('active');
-document.getElementById('signalSection').classList.add('active');
-}else{
-document.querySelector('.tab:last-child').classList.add('active');
-document.getElementById('dashboardSection').classList.add('active');
-if(dashboardData)renderDashboard(dashboardData,dashboardKPI);
-}
-}
-
 function loadAll(){
 document.getElementById('updateInfo').textContent='正在获取数据...';
 return Promise.all([
@@ -266,12 +195,7 @@ return;
 }
 var last=allData[allData.length-1];
 renderSignal(last);
-dashboardData=StrategyCommon.processRealData(allData);
-dashboardKPI=StrategyCommon.calcKPI(dashboardData);
 document.getElementById('updateInfo').textContent='数据已就绪';
-if(document.getElementById('dashboardSection').classList.contains('active')){
-renderDashboard(dashboardData,dashboardKPI);
-}
 }).catch(function(e){
 document.getElementById('updateInfo').textContent='网络错误，请重试';
 console.error(e);
@@ -284,48 +208,6 @@ btn.disabled=true;btn.textContent='更新中...';
 var done=function(){btn.disabled=false;btn.textContent='↻ 更新数据'};
 loadAll().then(done).catch(done);
 setTimeout(function(){if(btn.disabled)done()},15000);
-}
-
-function renderDashboard(data,kpi){
-document.getElementById('dashboardLoading').style.display='none';
-document.getElementById('dashboardContent').style.display='block';
-
-var grid=document.getElementById('kpiGrid');
-grid.innerHTML=
-'<div class="kpi-item"><div class="kpi-value '+(kpi.acc5>=50?'kpi-green':'kpi-red')+'">'+kpi.acc5.toFixed(1)+'%</div><div class="kpi-label">5日准确率</div></div>'+
-'<div class="kpi-item"><div class="kpi-value '+(kpi.acc10>=50?'kpi-green':'kpi-red')+'">'+kpi.acc10.toFixed(1)+'%</div><div class="kpi-label">10日准确率</div></div>'+
-'<div class="kpi-item"><div class="kpi-value '+(kpi.acc20>=50?'kpi-green':'kpi-red')+'">'+kpi.acc20.toFixed(1)+'%</div><div class="kpi-label">20日准确率</div></div>'+
-'<div class="kpi-item"><div class="kpi-value '+(kpi.accWeighted>=50?'kpi-green':'kpi-red')+'">'+kpi.accWeighted.toFixed(1)+'%</div><div class="kpi-label">加权准确率</div></div>';
-
-var last200=data.slice(-200);
-var labels=last200.map(function(d){return d.date});
-var navs=last200.map(function(d){return d.nav});
-var ctx=document.getElementById('navChart').getContext('2d');
-new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'策略净值',data:navs,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.1)',fill:true,tension:0.1,pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#484f58',font:{size:9},maxTicksLimit:5},grid:{color:'#1e293b'}},y:{ticks:{color:'#484f58',font:{size:9}},grid:{color:'#1e293b'}}}}});
-
-var statsEl=document.getElementById('signalStats');
-var html='';
-kpi.signalStats.forEach(function(s){
-if(s.triggers>0){
-html+='<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(30,41,59,0.5);font-size:13px">'+
-'<span style="color:'+s.color+'">'+s.name+'</span>'+
-'<span>'+s.triggers+'次 / 准确率'+(s.avgWa!==null?s.avgWa.toFixed(1):'--')+'%</span></div>';
-}
-});
-statsEl.innerHTML=html;
-
-var table=document.getElementById('recentTable');
-var recent=data.slice(-10).reverse();
-var th='<thead><tr><th>日期</th><th>收盘</th><th>信号</th><th>5日</th><th>10日</th></tr></thead>';
-var tb='<tbody>';
-recent.forEach(function(r){
-tb+='<tr><td>'+r.date+'</td><td>'+r.close.toFixed(2)+'</td>'+
-'<td style="color:'+r.signal.color+'">'+r.signal.name+'</td>'+
-'<td style="color:'+(r.j5==='pass'?'#3fb950':r.j5==='fail'?'#f85149':'#8b949e')+'">'+(r.j5!==null?StrategyCommon.judgeLabel(r.j5):'--')+'</td>'+
-'<td style="color:'+(r.j10==='pass'?'#3fb950':r.j10==='fail'?'#f85149':'#8b949e')+'">'+(r.j10!==null?StrategyCommon.judgeLabel(r.j10):'--')+'</td></tr>';
-});
-tb+='</tbody>';
-table.innerHTML=th+tb;
 }
 
 loadAll();
