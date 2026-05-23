@@ -1,8 +1,6 @@
-var CACHE_NAME='zz500-v2';
-var HTML_FILES=['index.html','strategy-debug.html','review.html'];
+var CACHE_NAME='zz500-v3';
 var STATIC_ASSETS=[
-  'strategy-common.js','manifest.json',
-  'vendor/papaparse.min.js'
+  'manifest.json'
 ];
 
 self.addEventListener('install',function(e){
@@ -20,33 +18,21 @@ self.addEventListener('activate',function(e){
 });
 
 self.addEventListener('fetch',function(e){
-  var url=new URL(e.request.url);
-  var isHtml=HTML_FILES.some(function(f){return url.pathname.endsWith(f)});
-
-  if(isHtml){
-    e.respondWith(
-      fetch(e.request).then(function(resp){
-        if(resp.ok){
-          var clone=resp.clone();
-          caches.open(CACHE_NAME).then(function(cache){cache.put(e.request,clone)});
-        }
-        return resp;
-      }).catch(function(){
-        return caches.match(e.request);
-      })
-    );
-  }else{
-    e.respondWith(
-      caches.match(e.request).then(function(cached){
-        var fetcher=fetch(e.request).then(function(resp){
+  if(e.request.method!=='GET')return;
+  e.respondWith(
+    caches.open(CACHE_NAME).then(function(cache){
+      return cache.match(e.request).then(function(cached){
+        var fetched=fetch(e.request).then(function(resp){
           if(resp.ok){
             var clone=resp.clone();
-            caches.open(CACHE_NAME).then(function(cache){cache.put(e.request,clone)});
+            cache.put(e.request,clone);
           }
           return resp;
+        }).catch(function(){
+          return cached||new Response('',{status:504});
         });
-        return cached||fetcher;
-      })
-    );
-  }
+        return cached||fetched;
+      });
+    })
+  );
 });
