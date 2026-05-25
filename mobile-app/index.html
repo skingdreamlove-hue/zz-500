@@ -131,7 +131,7 @@ var zz500MA=_computeMA20(zz500K);
 var hs300MA=_computeMA20(hs300K);
 var hs300Map={};
 for(var i=0;i<hs300K.length;i++)hs300Map[hs300K[i][0]]={close:parseFloat(hs300K[i][2]),ma:hs300MA[i]};
-var vol5=[];
+var vol5=[];var vol60=[];
 var rows=[];
 for(var i=0;i<zz500K.length;i++){
 var k=zz500K[i];
@@ -142,8 +142,10 @@ var h=hs300Map[date]||{close:close,ma:ma20};
 var hs300Close=h.close,hs300Ma20=h.ma;
 var isHs300Strong=hs300Close>hs300Ma20;
 vol5.push(vol);if(vol5.length>5)vol5.shift();
+vol60.push(vol);if(vol60.length>60)vol60.shift();
 var avgVol5=_avg(vol5);
-var isVolumeSurge=vol>avgVol5*1.5;
+var avgVol60=vol60.length>=30?_avg(vol60):null;
+var isVolumeSurge=avgVol60&&avgVol60>0?avgVol5>avgVol60*1.5:vol>avgVol5*1.5;
 
 var signal='观望-无效突破';
 if(ma20>0){
